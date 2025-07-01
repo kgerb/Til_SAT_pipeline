@@ -15,7 +15,7 @@ The model used for instance segmentation is [SegmentAnyTree](https://www.science
 3. **Tree Instance Segmentation (Step 2)**
     - Instance (individual trees) and semantic (Vegetation/Ground) segmentation.
 
-4. **Merging Tiles & Remapping (Step 4)**
+4. **Merging Tiles & Remapping (Step 3)**
     - Merges the segmented tiles into a single file while trying to merge overlapping tree instances.
     - Remaps the points to the original resolution.
 
