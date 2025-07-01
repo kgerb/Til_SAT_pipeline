@@ -1,0 +1,3 @@
+shared*
+DetailView/__*
+DetailView/torch_cache/*
