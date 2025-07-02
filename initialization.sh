@@ -1,8 +1,10 @@
 #!/bin/bash
-# filepath: /home/kg281/projects/SAT_DT_pipeline/initialization.sh
 
-# Initialization Script for SAT_DT_pipeline
-# This script handles input validation, folder creation, and file copying
+# Initialization script for the Til_SAT_pipeline
+# checks for the provided arguments
+# creates the folder structure
+# copies the input file to the shared folder
+# sets the necessary environment variables for the pipeline 
 
 INPUT_FILE=$1
 SUFFIX=$2
@@ -30,7 +32,7 @@ export SHARED_FOLDER_PATH
 echo "Input file: $INPUT_FILE"
 echo "Shared folder: $SHARED_FOLDER_PATH"
 
-# get the basename
+# get the basename without the suffix
 BASENAME=$(basename "$INPUT_FILE" .las)
 if [[ "$INPUT_FILE" == *.laz ]]; then
     BASENAME=$(basename "$INPUT_FILE" .laz)
@@ -48,9 +50,6 @@ RESULTS_FOLDER_NAME="${PREFIX}_${BASENAME}_results"
 export RESULTS_FOLDER_NAME
 export ORIGINAL_DIR
 
-echo "Basename: $BASENAME"
-echo "Filename: $FILENAME"
-
 # Create folder structure
 echo "Creating folder structure..."
 mkdir -p "${SHARED_FOLDER_PATH}/00_original"
@@ -61,9 +60,8 @@ mkdir -p "${SHARED_FOLDER_PATH}/04_merged"
 mkdir -p "${SHARED_FOLDER_PATH}/05_detailview"
 mkdir -p "${SHARED_FOLDER_PATH}/06_final_results"
 
-echo "Folder structure created successfully!"
 
-# get the subsampled file names (local paths, not docker container compatible)
+# get the subsampled file names
 SUBSAMPLED_5cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_5cm.las
 if [[ "$INPUT_FILE" == *.laz ]]; then
     SUBSAMPLED_5cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_5cm.laz
@@ -81,6 +79,5 @@ export SUBSAMPLED_2cm_FILE
 echo "Copying input file to shared folder..."
 cp "$INPUT_FILE" "$SHARED_FOLDER_PATH/00_original/"
 echo "✓ Copied $INPUT_FILE to $SHARED_FOLDER_PATH/00_original/"
-
 
 echo "=== Initialization Complete ==="

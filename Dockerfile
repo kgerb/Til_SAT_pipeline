@@ -1,6 +1,10 @@
+# Stage 1: Build dependencies and Python environment
 FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu20.04 as builder
 
+# Set timezone
 RUN ln -fs /usr/share/zoneinfo/Europe/Oslo /etc/localtime
+
+# Install system dependencies and Python 3.8
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     git \
@@ -31,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pycuda \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python development tools and utilities
 RUN python3.8 -m pip install --no-cache-dir --upgrade \
     autopep8==1.5.7 \
     doc8==0.8.1 \
@@ -47,15 +52,18 @@ RUN python3.8 -m pip install --no-cache-dir --upgrade \
     tqdm==4.62.3 \
     wheel==0.37.0
 
+# Set CUDA and PyTorch architecture environment variables
 ENV CU_VERSION=cu111
 ENV TORCH_CUDA_ARCH_LIST_VER="6.0;7.0;7.5;8.0;8.6"
 
+# Install PyTorch and related packages with CUDA support
 RUN python3.8 -m pip install --no-cache-dir \
     torch==1.9.0+${CU_VERSION} \
     torchvision==0.10.0+${CU_VERSION} \
     torchaudio==0.9.0 \
     -f https://download.pytorch.org/whl/torch_stable.html
 
+# Install PyTorch Geometric and dependencies
 RUN python3.8 -m pip install --no-cache-dir \
     torch-scatter==2.0.8 \
     torch-sparse==0.6.12 \
@@ -64,14 +72,16 @@ RUN python3.8 -m pip install --no-cache-dir \
     torch-geometric==1.7.2 \
     -f https://data.pyg.org/whl/torch-1.9.0+${CU_VERSION}.html
 
+# Install MinkowskiEngine (3D sparse convolution)
 RUN TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST_VER} python3.8 -m pip install --no-cache-dir \
     git+https://github.com/NVIDIA/MinkowskiEngine.git \
     --install-option="--blas=openblas" --install-option="--force_cuda"
 
+# Install torchsparse (another 3D sparse convolution library)
 RUN TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST_VER} FORCE_CUDA=1 python3.8 -m pip install --no-cache-dir \
     git+https://github.com/mit-han-lab/torchsparse.git@v1.4.0
 
-# Install torch-points3d requirements and fixed dependencies
+# Install torch-points3d and other Python dependencies
 RUN TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST_VER} FORCE_CUDA=1 python3.8 -m pip install --no-cache-dir \
     torch-points-kernels==0.7.0 \
     absl-py==0.14.0 \
@@ -211,7 +221,10 @@ RUN TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST_VER} FORCE_CUDA=1 python3.8 -m p
     widgetsnbextension==3.5.1 \
     zipp==3.5.0
 
+# Install Cython (required for hdbscan)
 RUN python3.8 -m pip install cython==0.29.37
+
+# Build and install hdbscan from source
 RUN wget https://github.com/scikit-learn-contrib/hdbscan/archive/refs/tags/0.8.29.zip && \
     unzip 0.8.29.zip && \
     rm 0.8.29.zip && \
@@ -219,7 +232,7 @@ RUN wget https://github.com/scikit-learn-contrib/hdbscan/archive/refs/tags/0.8.2
     python3.8 -m pip install -r requirements.txt && \
     python3.8 setup.py install
 
-# Clean up unnecessary files and caches
+# Clean up unnecessary files and caches to reduce image size
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
     find /usr/local -depth \
@@ -229,7 +242,7 @@ RUN apt-get clean && \
       \( -type f -a -name '*.pyc' -o -name '*.pyo' \) \
     \) -exec rm -rf '{}' + ;
 
-# --- Install Miniconda ---
+# --- Install Miniconda for environment management ---
 ENV CONDA_DIR=/opt/conda
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
     && bash /tmp/miniconda.sh -b -p $CONDA_DIR \
@@ -237,19 +250,22 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     && $CONDA_DIR/bin/conda clean -afy
 ENV PATH=$CONDA_DIR/bin:$PATH
 
-# --- Copy and create tiling_merge_env from open3d_env_gpd.yml ---
+# --- Create tiling_merge_env from YAML ---
 COPY Tiling_Merge/tiling_env.yml /tmp/tiling_env.yml
 RUN conda env create -f /tmp/tiling_env.yml
 
-# Stage 2: Final stage
+# Stage 2: Final image with only runtime dependencies
 FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu20.04 AS final
 
+# Set timezone
 RUN ln -fs /usr/share/zoneinfo/Europe/Oslo /etc/localtime
 
+# Copy built libraries and binaries from builder stage
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /usr/local/lib /usr/local/lib
 COPY --from=builder /usr/local/include /usr/local/include
 
+# Install runtime system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas-base \
     python3.8 \
@@ -265,6 +281,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.8 /usr/bin/python3 && \
     ln -sf /usr/bin/pip3.8 /usr/bin/pip3
 
+# Install additional Python packages needed at runtime
 RUN python3.8 -m pip install --no-cache-dir \
     numba==0.57.1 \
     numpy==1.24.4 \
@@ -272,17 +289,15 @@ RUN python3.8 -m pip install --no-cache-dir \
     dask==2021.8.1 \
     pykdtree==1.3.7.post0
 
-
-
+# Create a working directory for SegmentAnyTree
 RUN mkdir -p /home/datascience
 
-# --- Miniconda in final stage ---
+# Copy Miniconda from builder stage
 COPY --from=builder /opt/conda /opt/conda
 ENV CONDA_DIR=/opt/conda
 ENV PATH=$CONDA_DIR/bin:$PATH
 
-#COPY . /home/nibio/mutable-outside-world
-# WORKDIR /home/nibio/mutable-outside-world
+# Set working directory
 WORKDIR /workspace
 
 # ENTRYPOINT ["bash", "run_oracle_pipeline.sh"]

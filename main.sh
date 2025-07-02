@@ -4,8 +4,8 @@ INPUT_FILE=$1
 PREFIX=$2
 SHARED_FOLDER=/data
 
-# define the overlap
-TILE_SIZE=50
+# define the overlap, Tile size is in meters (!) and should be at least twice the overlap
+TILE_SIZE=100
 OVERLAP=20
 
 export TILE_SIZE
@@ -13,7 +13,6 @@ export OVERLAP
 
 
 # Run initialization script
-echo "=== Running Initialization ==="
 source initialization.sh "$INPUT_FILE" "$PREFIX" "$SHARED_FOLDER"
 
 # Create log file
@@ -39,9 +38,9 @@ read -r
 echo "Starting Pipeline"
 
 
-# # Now let's call the individual scripts in the containers
+# Now let's call the individual scripts in the containers
 
-# ######################## TILING ########################
+######################## TILING ########################
 
 # activate the conda env
 source /opt/conda/etc/profile.d/conda.sh
@@ -51,18 +50,16 @@ bash /workspace/Tiling_Merge/tiling_main.sh $FILENAME $PREFIX
 
 conda deactivate
 
-
-# # ######################### SEGMENTATION ########################
+####################### SEGMENTATION ########################
 
 bash /workspace/SegmentAnyTree/run_SAT.sh
 
 
-# Merge the tiles back together
+######################## MERGING ########################
 
 source /opt/conda/etc/profile.d/conda.sh
 conda activate tiling_env
 
-echo $CONDA_DEFAULT_ENV
 
 
 python3 /workspace/Tiling_Merge/merge_tiles.py \
@@ -70,7 +67,7 @@ python3 /workspace/Tiling_Merge/merge_tiles.py \
     --original_point_cloud /data/01_subsampled/${BASENAME}_subsampled_5cm.las \
     --output_file /data/04_merged/${BASENAME}_merged.las
 
-## back to original resolution
+######################## REMAPPING TO ORIGINAL RESOLUTION ########################
 
 python3 /workspace/Tiling_Merge/remapping_original_res.py \
     --original_file /data/00_original/${FILENAME} \
@@ -78,9 +75,8 @@ python3 /workspace/Tiling_Merge/remapping_original_res.py \
     --output_file /data/06_final_results/${BASENAME}_with_all_attributes_orig_res.las
 
 
-# ############ Convert to LAZ #############
+######################## LAZ CONVERSION ########################
 
-# convert to laz
 pdal translate \
     "/data/06_final_results/${BASENAME}_with_all_attributes_orig_res.las" \
     "/data/06_final_results/${BASENAME}_with_all_attributes_orig_res.laz" \

@@ -6,6 +6,20 @@ import os
 
 
 def main(original_file, subsampled_file, output_file):
+    """
+    Remap predicted attributes from a subsampled point cloud back to the original resolution point cloud.
+
+    This function takes an original point cloud file and a subsampled point cloud file (both LAS/LAZ),
+    and for each point in the original, finds its nearest neighbor in the subsampled cloud. It then
+    copies the predicted attributes (e.g., PredInstance, PredSemantic) from the subsampled cloud to the
+    original cloud, creating new attributes if necessary. The updated original point cloud is saved to
+    the specified output file.
+
+    Args:
+        original_file (str): Path to the original resolution LAS/LAZ file.
+        subsampled_file (str): Path to the subsampled LAS/LAZ file with predicted attributes.
+        output_file (str): Path to save the updated original LAS/LAZ file.
+    """
     # Load the original point cloud
     original_las = laspy.read(original_file)
     original_points = np.vstack((original_las.x, original_las.y, original_las.z)).T

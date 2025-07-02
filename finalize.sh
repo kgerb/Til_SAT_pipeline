@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# What do we want to export in the end?
+
+
 # copy the csv with id, species, height
 cp ${SHARED_FOLDER_PATH}/05_detailview/final_species_height.csv ${SHARED_FOLDER_PATH}/06_final_results/final_species_height.csv
 

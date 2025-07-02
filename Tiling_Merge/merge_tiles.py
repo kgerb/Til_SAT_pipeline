@@ -5,7 +5,18 @@ from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
 
 
-def is_within_tile_boundary(point, tile_boundary, buffer=1):
+def is_within_tile_boundary(point, tile_boundary, buffer=1.0):
+    """
+    Check if a point is within the tile boundary, considering a buffer.
+
+    Args:
+        point (tuple or array): The (x, y, z) coordinates of the point.
+        tile_boundary (tuple): (min_x, max_x, min_y, max_y) of the tile.
+        buffer (float): Buffer distance to shrink the boundary.
+
+    Returns:
+        bool: True if the point is within the buffered boundary, False otherwise.
+    """
     x, y, z = point
     return (tile_boundary[0] + buffer <= x <= tile_boundary[1] - buffer) and (
         tile_boundary[2] + buffer <= y <= tile_boundary[3] - buffer
@@ -13,6 +24,18 @@ def is_within_tile_boundary(point, tile_boundary, buffer=1):
 
 
 def find_whole_trees(tile_points, tile_pred_instance, tile_boundary, buffer=0.2):
+    """
+    Identify tree instance IDs whose points are entirely within the tile boundary (with buffer).
+
+    Args:
+        tile_points (np.ndarray): Nx3 array of tile point coordinates.
+        tile_pred_instance (np.ndarray): Array of instance IDs for each point.
+        tile_boundary (tuple): (min_x, max_x, min_y, max_y) of the tile.
+        buffer (float): Buffer distance to shrink the boundary.
+
+    Returns:
+        set: Set of instance IDs that are fully contained within the buffered tile boundary.
+    """
     whole_tree_ids = set()
     unique_ids = np.unique(tile_pred_instance)
     for tree_id in unique_ids:
@@ -35,6 +58,17 @@ def reassign_small_clusters(
     max_radius=5.0,
     radius_step=1.0,
 ):
+    """
+    Reassign points in small clusters to the nearest larger cluster, or mark as -1 if not possible.
+
+    Args:
+        merged_pred_instance (np.ndarray): Array of instance IDs for all points.
+        original_points (np.ndarray): Nx3 array of point coordinates.
+        min_cluster_size (int): Minimum size for a cluster to be considered valid.
+        initial_radius (float): Starting search radius for reassignment.
+        max_radius (float): Maximum search radius for reassignment.
+        radius_step (float): Step size to increase the search radius.
+    """
     unique, counts = np.unique(merged_pred_instance, return_counts=True)
     small_instances = unique[counts < min_cluster_size]
     print(
@@ -76,9 +110,24 @@ def reassign_small_clusters(
 def merge_tiles(
     tile_folder, original_point_cloud, output_file, buffer=0.2, min_cluster_size=300
 ):
+    """
+    Merge predicted instance and semantic labels from tile files back into the original point cloud.
+
+    For each tile, reindex instance IDs globally, assign whole-tree instances to the original cloud,
+    reassign small clusters, and save the merged result. Also generates a 2D top-view image.
+
+    Args:
+        tile_folder (str): Path to the folder containing tile LAS/LAZ files.
+        original_point_cloud (str): Path to the original point cloud file.
+        output_file (str): Path to save the merged point cloud.
+        buffer (float): Buffer distance for whole-tree assignment.
+        min_cluster_size (int): Minimum cluster size for reassignment.
+    """
     print("Loading the original point cloud...")
     original_las = laspy.read(original_point_cloud)
-    original_points = np.vstack((original_las.x, original_las.y, original_las.z)).T
+    original_points = np.vstack(
+        (np.array(original_las.x), np.array(original_las.y), np.array(original_las.z))
+    ).T
 
     merged_pred_instance = np.full(len(original_points), -1, dtype=int)
     merged_pred_semantic = np.full(len(original_points), -1, dtype=int)
@@ -99,10 +148,12 @@ def merge_tiles(
         if filename.endswith(".las") or filename.endswith(".laz"):
             print(f"Loading tile: {filename}")
             tile_las = laspy.read(os.path.join(tile_folder, filename))
-            tile_points = np.vstack((tile_las.x, tile_las.y, tile_las.z)).T
+            tile_points = np.vstack(
+                (np.array(tile_las.x), np.array(tile_las.y), np.array(tile_las.z))
+            ).T
 
-            tile_pred_instance = tile_las.PredInstance
-            tile_pred_semantic = tile_las.PredSemantic
+            tile_pred_instance = np.array(tile_las.PredInstance)
+            tile_pred_semantic = np.array(tile_las.PredSemantic)
 
             # Reindex PredInstance IDs globally, but keep 0 as 0 as it reflects ground points
             unique_ids = np.unique(tile_pred_instance)
@@ -167,7 +218,7 @@ def merge_tiles(
     print("Saving merged point cloud...")
     merged_las = laspy.create(
         point_format=original_las.header.point_format,
-        file_version=original_las.header.version,
+        file_version=str(original_las.header.version),
     )
     merged_las.points = original_las.points
     merged_las.header = (
@@ -175,8 +226,12 @@ def merge_tiles(
     )  # Preserve the header information including the coordinate system
 
     # Initialize new extra attributes
-    merged_las.add_extra_dim(laspy.ExtraBytesParams(name="PredInstance", type=np.int32))
-    merged_las.add_extra_dim(laspy.ExtraBytesParams(name="PredSemantic", type=np.int32))
+    merged_las.add_extra_dim(
+        laspy.ExtraBytesParams(name="PredInstance", type=np.dtype(np.int32))
+    )
+    merged_las.add_extra_dim(
+        laspy.ExtraBytesParams(name="PredSemantic", type=np.dtype(np.int32))
+    )
 
     # Assign the merged attributes
     merged_las.PredInstance = merged_pred_instance
