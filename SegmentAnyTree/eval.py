@@ -6,12 +6,14 @@ from torch_points3d.trainer import Trainer
 
 @hydra.main(config_path="conf", config_name="eval")
 def main(cfg):
-    OmegaConf.set_struct(cfg, False)  # This allows getattr and hasattr methods to function correctly
+    OmegaConf.set_struct(
+        cfg, False
+    )  # This allows getattr and hasattr methods to function correctly
     if cfg.pretty_print:
         print(OmegaConf.to_yaml(cfg))
-    
+
     trainer = Trainer(cfg)
-    trainer.eval(stage_name = "test")
+    trainer.eval(stage_name="test")
     #
     # # https://github.com/facebookresearch/hydra/issues/440
     GlobalHydra.get_state().clear()
