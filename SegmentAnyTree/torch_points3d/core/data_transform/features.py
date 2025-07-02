@@ -1,23 +1,9 @@
 from typing import List, Optional
-from tqdm.auto import tqdm as tq
-import itertools
 import numpy as np
-import math
-import re
 import torch
 import random
-from torch.nn import functional as F
-from functools import partial
 
-from torch_geometric.nn import fps, radius, knn, voxel_grid
-from torch_geometric.nn.pool.consecutive import consecutive_cluster
-from torch_geometric.nn.pool.pool import pool_pos, pool_batch
-from torch_scatter import scatter_add, scatter_mean
-from torch_geometric.data import Data, Batch
-from torch_points3d.datasets.multiscale_data import MultiScaleData
-from torch_points3d.utils.transform_utils import SamplingStrategy
-from torch_points3d.utils.config import is_list
-from torch_points3d.utils import is_iterable
+from torch_geometric.data import Data
 from torch_points3d.utils.geometry import euler_angles_to_rotation_matrix
 
 
@@ -39,7 +25,13 @@ class Random3AxisRotation(object):
         Rotation angle in degrees on z axis
     """
 
-    def __init__(self, apply_rotation: bool = True, rot_x: float = None, rot_y: float = None, rot_z: float = None):
+    def __init__(
+        self,
+        apply_rotation: bool = True,
+        rot_x: float = None,
+        rot_y: float = None,
+        rot_z: float = None,
+    ):
         self._apply_rotation = apply_rotation
         if apply_rotation:
             if (rot_x is None) and (rot_y is None) and (rot_z is None):
@@ -71,7 +63,11 @@ class Random3AxisRotation(object):
 
     def __repr__(self):
         return "{}(apply_rotation={}, rot_x={}, rot_y={}, rot_z={})".format(
-            self.__class__.__name__, self._apply_rotation, self._rot_x, self._rot_y, self._rot_z
+            self.__class__.__name__,
+            self._apply_rotation,
+            self._rot_x,
+            self._rot_y,
+            self._rot_z,
         )
 
 
@@ -86,7 +82,9 @@ class RandomTranslation(object):
         max translation
     """
 
-    def __init__(self, delta_max: List = [1.0, 1.0, 1.0], delta_min: List = [-1.0, -1.0, -1.0]):
+    def __init__(
+        self, delta_max: List = [1.0, 1.0, 1.0], delta_min: List = [-1.0, -1.0, -1.0]
+    ):
         self.delta_max = torch.tensor(delta_max)
         self.delta_min = torch.tensor(delta_min)
 
@@ -97,7 +95,9 @@ class RandomTranslation(object):
         return data
 
     def __repr__(self):
-        return "{}(delta_min={}, delta_max={})".format(self.__class__.__name__, self.delta_min, self.delta_max)
+        return "{}(delta_min={}, delta_max={})".format(
+            self.__class__.__name__, self.delta_min, self.delta_max
+        )
 
 
 class AddFeatsByKeys(object):
@@ -138,7 +138,6 @@ class AddFeatsByKeys(object):
         stricts: List[bool] = None,
         delete_feats: List[bool] = None,
     ):
-
         self._feat_names = feat_names
         self._list_add_to_x = list_add_to_x
         self._delete_feats = delete_feats
@@ -163,8 +162,12 @@ class AddFeatsByKeys(object):
             stricts = [True for _ in range(num_names)]
 
         transforms = [
-            AddFeatByKey(add_to_x, feat_name, input_nc_feat=input_nc_feat, strict=strict)
-            for add_to_x, feat_name, input_nc_feat, strict in zip(list_add_to_x, feat_names, input_nc_feats, stricts)
+            AddFeatByKey(
+                add_to_x, feat_name, input_nc_feat=input_nc_feat, strict=strict
+            )
+            for add_to_x, feat_name, input_nc_feat, strict in zip(
+                list_add_to_x, feat_names, input_nc_feats, stricts
+            )
         ]
 
         self.transform = Compose(transforms)
@@ -200,7 +203,6 @@ class AddFeatByKey(object):
     """
 
     def __init__(self, add_to_x, feat_name, input_nc_feat=None, strict=True):
-
         self._add_to_x: bool = add_to_x
         self._feat_name: str = feat_name
         self._input_nc_feat = input_nc_feat
@@ -212,14 +214,20 @@ class AddFeatByKey(object):
         feat = getattr(data, self._feat_name, None)
         if feat is None:
             if self._strict:
-                raise Exception("Data should contain the attribute {}".format(self._feat_name))
+                raise Exception(
+                    "Data should contain the attribute {}".format(self._feat_name)
+                )
             else:
                 return data
         else:
             if self._input_nc_feat:
                 feat_dim = 1 if feat.dim() == 1 else feat.shape[-1]
                 if self._input_nc_feat != feat_dim and self._strict:
-                    raise Exception("The shape of feat: {} doesn t match {}".format(feat.shape, self._input_nc_feat))
+                    raise Exception(
+                        "The shape of feat: {} doesn t match {}".format(
+                            feat.shape, self._input_nc_feat
+                        )
+                    )
             x = getattr(data, "x", None)
             if x is None:
                 if self._strict and data.pos.shape[0] != feat.shape[0]:
@@ -362,7 +370,8 @@ class XYZFeature(object):
 
     def __repr__(self):
         return "{}(axis={})".format(self.__class__.__name__, self._axis_names)
-        
+
+
 class XYZRelaFeature(object):
     """
     Add the relative X, Y and Z as a feature

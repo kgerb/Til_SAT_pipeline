@@ -17,10 +17,18 @@ log = logging.getLogger(__name__)
 
 class RSConvMapper(nn.Module):
     """[This class handles the special mechanism between the msg
-        and the features of RSConv]
+    and the features of RSConv]
     """
 
-    def __init__(self, down_conv_nn, use_xyz, bn=True, activation=nn.LeakyReLU(negative_slope=0.01), *args, **kwargs):
+    def __init__(
+        self,
+        down_conv_nn,
+        use_xyz,
+        bn=True,
+        activation=nn.LeakyReLU(negative_slope=0.01),
+        *args,
+        **kwargs,
+    ):
         super(RSConvMapper, self).__init__()
 
         self._down_conv_nn = down_conv_nn
@@ -91,7 +99,9 @@ class SharedRSConv(nn.Module):
         features = aggr_features[:, 3:]
 
         nsample = abs_coord.shape[-1]
-        coord_xi = centroids.repeat(1, 1, 1, nsample)  # (B, 3, npoint, nsample) centroid points
+        coord_xi = centroids.repeat(
+            1, 1, 1, nsample
+        )  # (B, 3, npoint, nsample) centroid points
 
         distance = torch.norm(delta_x, p=2, dim=1).unsqueeze(1)  # Calculate distance
 
@@ -115,13 +125,17 @@ class RSConvSharedMSGDown(BaseDenseConvolutionDown):
         bn=True,
         use_xyz=True,
         activation=nn.ReLU(),
-        **kwargs
+        **kwargs,
     ):
         assert len(radii) == len(nsample)
         if len(radii) != len(down_conv_nn):
-            log.warn("The down_conv_nn has a different size as radii. Make sure of have SharedRSConv")
+            log.warn(
+                "The down_conv_nn has a different size as radii. Make sure of have SharedRSConv"
+            )
         super(RSConvSharedMSGDown, self).__init__(
-            DenseFPSSampler(num_to_sample=npoint), DenseRadiusNeighbourFinder(radii, nsample), **kwargs
+            DenseFPSSampler(num_to_sample=npoint),
+            DenseRadiusNeighbourFinder(radii, nsample),
+            **kwargs,
         )
 
         self.use_xyz = use_xyz
@@ -129,11 +143,19 @@ class RSConvSharedMSGDown(BaseDenseConvolutionDown):
         self.mlps = nn.ModuleList()
 
         # https://github.com/Yochengliu/Relation-Shape-CNN/blob/6464eb8bb4efc686adec9da437112ef888e55684/utils/pointnet2_modules.py#L106
-        self._mapper = RSConvMapper(down_conv_nn, activation=activation, use_xyz=self.use_xyz)
+        self._mapper = RSConvMapper(
+            down_conv_nn, activation=activation, use_xyz=self.use_xyz
+        )
 
         self.mlp_out = Sequential(
             *[
-                Conv1d(channel_raising_nn[0], channel_raising_nn[-1], kernel_size=1, stride=1, bias=True),
+                Conv1d(
+                    channel_raising_nn[0],
+                    channel_raising_nn[-1],
+                    kernel_size=1,
+                    stride=1,
+                    bias=True,
+                ),
                 nn.BatchNorm1d(channel_raising_nn[-1]),
                 activation,
             ]
@@ -144,7 +166,9 @@ class RSConvSharedMSGDown(BaseDenseConvolutionDown):
 
     def _prepare_features(self, x, pos, new_pos, idx):
         new_pos_trans = pos.transpose(1, 2).contiguous()
-        grouped_pos_absolute = tp.grouping_operation(new_pos_trans, idx)  # (B, 3, npoint, nsample)
+        grouped_pos_absolute = tp.grouping_operation(
+            new_pos_trans, idx
+        )  # (B, 3, npoint, nsample)
         centroids = new_pos.transpose(1, 2).unsqueeze(-1)
         grouped_pos_normalized = grouped_pos_absolute - centroids
 
@@ -152,12 +176,15 @@ class RSConvSharedMSGDown(BaseDenseConvolutionDown):
             grouped_features = tp.grouping_operation(x, idx)
             if self.use_xyz:
                 new_features = torch.cat(
-                    [grouped_pos_absolute, grouped_pos_normalized, grouped_features], dim=1
+                    [grouped_pos_absolute, grouped_pos_normalized, grouped_features],
+                    dim=1,
                 )  # (B, 3 + 3 + C, npoint, nsample)
             else:
                 new_features = grouped_features
         else:
-            assert self.use_xyz, "Cannot have not features and not use xyz as a feature!"
+            assert self.use_xyz, (
+                "Cannot have not features and not use xyz as a feature!"
+            )
             new_features = torch.cat(
                 [grouped_pos_absolute, grouped_pos_normalized], dim=1
             )  # (B, 3 + 3 npoint, nsample)
@@ -165,7 +192,7 @@ class RSConvSharedMSGDown(BaseDenseConvolutionDown):
         return new_features, centroids
 
     def conv(self, x, pos, new_pos, radius_idx, scale_idx):
-        """ Implements a Dense convolution where radius_idx represents
+        """Implements a Dense convolution where radius_idx represents
         the indexes of the points in x and pos to be agragated into the new feature
         for each point in new_pos
 
@@ -180,8 +207,12 @@ class RSConvSharedMSGDown(BaseDenseConvolutionDown):
         """
         assert scale_idx < len(self.mlps)
         aggr_features, centroids = self._prepare_features(x, pos, new_pos, radius_idx)
-        new_features = self.mlps[scale_idx](aggr_features, centroids)  # (B, mlp[-1], npoint, nsample)
-        new_features = F.max_pool2d(new_features, kernel_size=[1, new_features.size(3)])  # (B, mlp[-1], npoint, 1)
+        new_features = self.mlps[scale_idx](
+            aggr_features, centroids
+        )  # (B, mlp[-1], npoint, nsample)
+        new_features = F.max_pool2d(
+            new_features, kernel_size=[1, new_features.size(3)]
+        )  # (B, mlp[-1], npoint, 1)
         new_features = self.mlp_out(new_features.squeeze(-1))  # (B, mlp[-1], npoint)
         return new_features
 
@@ -205,7 +236,13 @@ class OriginalRSConv(nn.Module):
     Output shape: (B, C_out, npoint)
     """
 
-    def __init__(self, mapping=None, first_layer=False, radius=None, activation=nn.ReLU(inplace=True)):
+    def __init__(
+        self,
+        mapping=None,
+        first_layer=False,
+        radius=None,
+        activation=nn.ReLU(inplace=True),
+    ):
         super(OriginalRSConv, self).__init__()
 
         self.nn = nn.ModuleList()
@@ -234,23 +271,31 @@ class OriginalRSConv(nn.Module):
         self.activation = activation
 
     def forward(self, input):  # input: (B, 3 + 3 + C_in, npoint, centroid + nsample)
-
         x = input[:, 3:, :, :]  # (B, C_in, npoint, nsample+1), input features
         nsample = x.size()[3]
-        abs_coord = input[:, 0:3, :, :]  # (B, 3, npoint, nsample+1), absolute coordinates
-        delta_x = input[:, 3:6, :, :]  # (B, 3, npoint, nsample+1), normalized coordinates
+        abs_coord = input[
+            :, 0:3, :, :
+        ]  # (B, 3, npoint, nsample+1), absolute coordinates
+        delta_x = input[
+            :, 3:6, :, :
+        ]  # (B, 3, npoint, nsample+1), normalized coordinates
 
-        coord_xi = abs_coord[:, :, :, 0:1].repeat(1, 1, 1, nsample)  # (B, 3, npoint, nsample),  centroid point
+        coord_xi = abs_coord[:, :, :, 0:1].repeat(
+            1, 1, 1, nsample
+        )  # (B, 3, npoint, nsample),  centroid point
         h_xi_xj = torch.norm(delta_x, p=2, dim=1).unsqueeze(1)
         h_xi_xj = torch.cat((h_xi_xj, coord_xi, abs_coord, delta_x), dim=1)
 
-        h_xi_xj = self.mapping_func2(self.activation(self.bn_mapping(self.mapping_func1(h_xi_xj))))
+        h_xi_xj = self.mapping_func2(
+            self.activation(self.bn_mapping(self.mapping_func1(h_xi_xj)))
+        )
 
         if self.first_layer:
             x = self.activation(self.bn_xyz_raising(self.xyz_raising(x)))
-        x = F.max_pool2d(self.activation(self.bn_rsconv(torch.mul(h_xi_xj, x))), kernel_size=(1, nsample)).squeeze(
-            3
-        )  # (B, C_in, npoint)
+        x = F.max_pool2d(
+            self.activation(self.bn_rsconv(torch.mul(h_xi_xj, x))),
+            kernel_size=(1, nsample),
+        ).squeeze(3)  # (B, C_in, npoint)
         x = self.activation(self.bn_channel_raising(self.cr_mapping(x)))
         return x
 
@@ -270,13 +315,17 @@ class RSConvOriginalMSGDown(BaseDenseConvolutionDown):
         bias=True,
         use_xyz=True,
         activation=nn.ReLU(),
-        **kwargs
+        **kwargs,
     ):
         assert len(radii) == len(nsample)
         if len(radii) != len(down_conv_nn):
-            log.warning("The down_conv_nn has a different size as radii. Make sure of have SharedRSConv")
+            log.warning(
+                "The down_conv_nn has a different size as radii. Make sure of have SharedRSConv"
+            )
         super(RSConvOriginalMSGDown, self).__init__(
-            DenseFPSSampler(num_to_sample=npoint), DenseRadiusNeighbourFinder(radii, nsample), **kwargs
+            DenseFPSSampler(num_to_sample=npoint),
+            DenseRadiusNeighbourFinder(radii, nsample),
+            **kwargs,
         )
 
         self.use_xyz = use_xyz
@@ -289,7 +338,11 @@ class RSConvOriginalMSGDown(BaseDenseConvolutionDown):
             C_in, C_intermediate, C_out = down_conv_nn[0]
             feat_in, f_out = down_conv_nn[-1]
             xyz_raising = nn.Conv2d(
-                in_channels=feat_in, out_channels=f_out, kernel_size=(1, 1), stride=(1, 1), bias=bias,
+                in_channels=feat_in,
+                out_channels=f_out,
+                kernel_size=(1, 1),
+                stride=(1, 1),
+                bias=bias,
             )
             nn.init.kaiming_normal_(xyz_raising.weight)
             if bias:
@@ -298,10 +351,18 @@ class RSConvOriginalMSGDown(BaseDenseConvolutionDown):
             C_in, C_intermediate, C_out = down_conv_nn
 
         mapping_func1 = nn.Conv2d(
-            in_channels=C_in, out_channels=C_intermediate, kernel_size=(1, 1), stride=(1, 1), bias=bias,
+            in_channels=C_in,
+            out_channels=C_intermediate,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            bias=bias,
         )
         mapping_func2 = nn.Conv2d(
-            in_channels=C_intermediate, out_channels=C_out, kernel_size=(1, 1), stride=(1, 1), bias=bias,
+            in_channels=C_intermediate,
+            out_channels=C_out,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            bias=bias,
         )
 
         nn.init.kaiming_normal_(mapping_func1.weight)
@@ -312,7 +373,11 @@ class RSConvOriginalMSGDown(BaseDenseConvolutionDown):
 
         # channel raising mapping
         cr_mapping = nn.Conv1d(
-            in_channels=channel_raising_nn[0], out_channels=channel_raising_nn[1], kernel_size=1, stride=1, bias=bias,
+            in_channels=channel_raising_nn[0],
+            out_channels=channel_raising_nn[1],
+            kernel_size=1,
+            stride=1,
+            bias=bias,
         )
         nn.init.kaiming_normal_(cr_mapping.weight)
         nn.init.constant_(cr_mapping.bias, 0)
@@ -326,10 +391,18 @@ class RSConvOriginalMSGDown(BaseDenseConvolutionDown):
             self.mappings.append(m)
 
         for radius in radii:
-            self.mlps.append(OriginalRSConv(mapping=mapping, first_layer=self._first_layer, radius=radius))
+            self.mlps.append(
+                OriginalRSConv(
+                    mapping=mapping, first_layer=self._first_layer, radius=radius
+                )
+            )
 
     def _prepare_features(
-        self, xyz: torch.Tensor, new_xyz: torch.Tensor, features: torch.Tensor = None, idx: torch.Tensor = None
+        self,
+        xyz: torch.Tensor,
+        new_xyz: torch.Tensor,
+        features: torch.Tensor = None,
+        idx: torch.Tensor = None,
     ) -> torch.Tensor:
         """
         Parameters
@@ -360,13 +433,15 @@ class RSConvOriginalMSGDown(BaseDenseConvolutionDown):
             else:
                 new_features = grouped_features
         else:
-            assert self.use_xyz, "Cannot have not features and not use xyz as a feature!"
+            assert self.use_xyz, (
+                "Cannot have not features and not use xyz as a feature!"
+            )
             new_features = torch.cat([raw_grouped_xyz, grouped_xyz], dim=1)
 
         return new_features
 
     def conv(self, x, pos, new_pos, radius_idx, scale_idx):
-        """ Implements a Dense convolution where radius_idx represents
+        """Implements a Dense convolution where radius_idx represents
         the indexes of the points in x and pos to be agragated into the new feature
         for each point in new_pos
 
@@ -409,13 +484,17 @@ class RSConvMSGDown(BaseDenseConvolutionDown):
         bias=True,
         use_xyz=True,
         activation=nn.ReLU(),
-        **kwargs
+        **kwargs,
     ):
         assert len(radii) == len(nsample)
         if len(radii) != len(down_conv_nn):
-            log.warning("The down_conv_nn has a different size as radii. Make sure to have sharedMLP")
+            log.warning(
+                "The down_conv_nn has a different size as radii. Make sure to have sharedMLP"
+            )
         super(RSConvMSGDown, self).__init__(
-            DenseFPSSampler(num_to_sample=npoint), DenseRadiusNeighbourFinder(radii, nsample), **kwargs
+            DenseFPSSampler(num_to_sample=npoint),
+            DenseRadiusNeighbourFinder(radii, nsample),
+            **kwargs,
         )
 
         self.use_xyz = use_xyz
@@ -426,21 +505,31 @@ class RSConvMSGDown(BaseDenseConvolutionDown):
 
         self.mlp_out = Sequential(
             *[
-                Conv1d(channel_raising_nn[0], channel_raising_nn[-1], kernel_size=1, stride=1, bias=True),
+                Conv1d(
+                    channel_raising_nn[0],
+                    channel_raising_nn[-1],
+                    kernel_size=1,
+                    stride=1,
+                    bias=True,
+                ),
                 nn.BatchNorm1d(channel_raising_nn[-1]),
                 activation,
             ]
         )
 
         for i in range(len(radii)):
-            mapper = RSConvMapper(down_conv_nn, activation=activation, use_xyz=self.use_xyz)
+            mapper = RSConvMapper(
+                down_conv_nn, activation=activation, use_xyz=self.use_xyz
+            )
             self.mlps.append(SharedRSConv(mapper, radii[i]))
 
         self._mapper = mapper
 
     def _prepare_features(self, x, pos, new_pos, idx):
         new_pos_trans = pos.transpose(1, 2).contiguous()
-        grouped_pos_absolute = tp.grouping_operation(new_pos_trans, idx)  # (B, 3, npoint, nsample)
+        grouped_pos_absolute = tp.grouping_operation(
+            new_pos_trans, idx
+        )  # (B, 3, npoint, nsample)
         centroids = new_pos.transpose(1, 2).unsqueeze(-1)
         grouped_pos_normalized = grouped_pos_absolute - centroids
 
@@ -448,12 +537,15 @@ class RSConvMSGDown(BaseDenseConvolutionDown):
             grouped_features = tp.grouping_operation(x, idx)
             if self.use_xyz:
                 new_features = torch.cat(
-                    [grouped_pos_absolute, grouped_pos_normalized, grouped_features], dim=1
+                    [grouped_pos_absolute, grouped_pos_normalized, grouped_features],
+                    dim=1,
                 )  # (B, 3 + 3 + C, npoint, nsample)
             else:
                 new_features = grouped_features
         else:
-            assert self.use_xyz, "Cannot have not features and not use xyz as a feature!"
+            assert self.use_xyz, (
+                "Cannot have not features and not use xyz as a feature!"
+            )
             new_features = torch.cat(
                 [grouped_pos_absolute, grouped_pos_normalized], dim=1
             )  # (B, 3 + 3 npoint, nsample)
@@ -461,7 +553,7 @@ class RSConvMSGDown(BaseDenseConvolutionDown):
         return new_features, centroids
 
     def conv(self, x, pos, new_pos, radius_idx, scale_idx):
-        """ Implements a Dense convolution where radius_idx represents
+        """Implements a Dense convolution where radius_idx represents
         the indexes of the points in x and pos to be agragated into the new feature
         for each point in new_pos
 
@@ -476,8 +568,12 @@ class RSConvMSGDown(BaseDenseConvolutionDown):
         """
         assert scale_idx < len(self.mlps)
         aggr_features, centroids = self._prepare_features(x, pos, new_pos, radius_idx)
-        new_features = self.mlps[scale_idx](aggr_features, centroids)  # (B, mlp[-1], npoint, nsample)
-        new_features = F.max_pool2d(new_features, kernel_size=[1, new_features.size(3)])  # (B, mlp[-1], npoint, 1)
+        new_features = self.mlps[scale_idx](
+            aggr_features, centroids
+        )  # (B, mlp[-1], npoint, nsample)
+        new_features = F.max_pool2d(
+            new_features, kernel_size=[1, new_features.size(3)]
+        )  # (B, mlp[-1], npoint, 1)
         new_features = self.mlp_out(new_features.squeeze(-1))  # (B, mlp[-1], npoint)
         return new_features
 

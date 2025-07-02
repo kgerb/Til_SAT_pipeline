@@ -5,8 +5,6 @@ from collections import OrderedDict
 
 from torch_points3d.models.model_interface import TrackerInterface
 from torch_points3d.metrics.base_tracker import BaseTracker, meter_value
-from torch_points3d.metrics.meters import APMeter
-from torch_points3d.datasets.segmentation import IGNORE_LABEL
 
 from torch_points3d.modules.VoteNet import VoteNetResults
 from torch_points3d.datasets.object_detection.box_data import BoxData
@@ -14,12 +12,20 @@ from .box_detection.ap import eval_detection
 
 
 class ObjectDetectionTracker(BaseTracker):
-    def __init__(self, dataset, stage="train", wandb_log=False, use_tensorboard: bool = False):
+    def __init__(
+        self, dataset, stage="train", wandb_log=False, use_tensorboard: bool = False
+    ):
         super(ObjectDetectionTracker, self).__init__(stage, wandb_log, use_tensorboard)
         self._num_classes = dataset.num_classes
         self._dataset = dataset
         self.reset(stage)
-        self._metric_func = {"loss": min, "acc": max, "pos": max, "neg": min, "map": max}
+        self._metric_func = {
+            "loss": min,
+            "acc": max,
+            "pos": max,
+            "neg": min,
+            "map": max,
+        }
 
     def reset(self, stage="train"):
         super().reset(stage=stage)
@@ -38,7 +44,7 @@ class ObjectDetectionTracker(BaseTracker):
         return tensor
 
     def track(self, model: TrackerInterface, data=None, track_boxes=False, **kwargs):
-        """ Add current model predictions (usually the result of a batch) to the tracking
+        """Add current model predictions (usually the result of a batch) to the tracking
         if tracking boxes, you must provide a labeled "data" object with the following attributes:
             - id_scan: id of the scan to which the boxes belong to
             - instance_box_cornerimport torchnet as tnts - gt box corners
@@ -49,14 +55,25 @@ class ObjectDetectionTracker(BaseTracker):
 
         outputs: VoteNetResults = model.get_output()
 
-        total_num_proposal = outputs.objectness_label.shape[0] * outputs.objectness_label.shape[1]
-        pos_ratio = torch.sum(outputs.objectness_label.float()).item() / float(total_num_proposal)
+        total_num_proposal = (
+            outputs.objectness_label.shape[0] * outputs.objectness_label.shape[1]
+        )
+        pos_ratio = torch.sum(outputs.objectness_label.float()).item() / float(
+            total_num_proposal
+        )
         self._pos_ratio.add(pos_ratio)
-        self._neg_ratio.add(torch.sum(outputs.objectness_mask.float()).item() / float(total_num_proposal) - pos_ratio)
+        self._neg_ratio.add(
+            torch.sum(outputs.objectness_mask.float()).item()
+            / float(total_num_proposal)
+            - pos_ratio
+        )
 
         obj_pred_val = torch.argmax(outputs.objectness_scores, 2)  # B,K
         self._obj_acc.add(
-            torch.sum((obj_pred_val == outputs.objectness_label.long()).float() * outputs.objectness_mask).item()
+            torch.sum(
+                (obj_pred_val == outputs.objectness_label.long()).float()
+                * outputs.objectness_mask
+            ).item()
             / (torch.sum(outputs.objectness_mask) + 1e-6).item()
         )
 
@@ -67,9 +84,13 @@ class ObjectDetectionTracker(BaseTracker):
 
     def _add_box_pred(self, outputs: VoteNetResults, input_data, conv_type):
         # Track box predictions
-        pred_boxes = outputs.get_boxes(self._dataset, apply_nms=True, duplicate_boxes=False)
+        pred_boxes = outputs.get_boxes(
+            self._dataset, apply_nms=True, duplicate_boxes=False
+        )
         if input_data.id_scan is None:
-            raise ValueError("Cannot track boxes without knowing in which scan they are")
+            raise ValueError(
+                "Cannot track boxes without knowing in which scan they are"
+            )
 
         scan_ids = input_data.id_scan
         assert len(scan_ids) == len(pred_boxes)
@@ -82,12 +103,14 @@ class ObjectDetectionTracker(BaseTracker):
             gt_boxes = input_data.instance_box_corners[sample_mask]
             gt_boxes = gt_boxes[input_data.box_label_mask[sample_mask]]
             sample_labels = input_data.sem_cls_label[sample_mask]
-            gt_box_data = [BoxData(sample_labels[i].item(), gt_boxes[i]) for i in range(len(gt_boxes))]
+            gt_box_data = [
+                BoxData(sample_labels[i].item(), gt_boxes[i])
+                for i in range(len(gt_boxes))
+            ]
             self._gt_boxes[scan_id.item()] = gt_box_data
 
     def get_metrics(self, verbose=False) -> Dict[str, Any]:
-        """ Returns a dictionnary of all metrics and losses being tracked
-        """
+        """Returns a dictionnary of all metrics and losses being tracked"""
         metrics = super().get_metrics(verbose)
 
         metrics["{}_acc".format(self._stage)] = meter_value(self._obj_acc)
@@ -101,8 +124,12 @@ class ObjectDetectionTracker(BaseTracker):
 
         if verbose and self._has_box_data:
             for thresh in self._ap:
-                metrics["{}_class_rec{}".format(self._stage, thresh)] = self._dict_to_str(self._rec[thresh])
-                metrics["{}_class_ap{}".format(self._stage, thresh)] = self._dict_to_str(self._ap[thresh])
+                metrics["{}_class_rec{}".format(self._stage, thresh)] = (
+                    self._dict_to_str(self._rec[thresh])
+                )
+                metrics["{}_class_ap{}".format(self._stage, thresh)] = (
+                    self._dict_to_str(self._ap[thresh])
+                )
 
         return metrics
 
@@ -114,7 +141,9 @@ class ObjectDetectionTracker(BaseTracker):
         self._ap = {}
         self._rec = {}
         for thresh in overlap_thresholds:
-            rec, _, ap = eval_detection(self._pred_boxes, self._gt_boxes, ovthresh=thresh)
+            rec, _, ap = eval_detection(
+                self._pred_boxes, self._gt_boxes, ovthresh=thresh
+            )
             self._ap[str(thresh)] = OrderedDict(sorted(ap.items()))
             self._rec[str(thresh)] = OrderedDict({})
             for key, val in sorted(rec.items()):

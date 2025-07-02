@@ -1,17 +1,13 @@
 from typing import List
 import itertools
 import numpy as np
-import math
-import re
 import torch
 import random
 from tqdm.auto import tqdm as tq
 from sklearn.neighbors import KDTree
 from functools import partial
 from torch.nn import functional as F
-from torch_geometric.nn.pool.pool import pool_pos, pool_batch
 from torch_geometric.data import Data, Batch
-from torch_scatter import scatter_add, scatter_mean
 from torch_geometric.transforms import FixedPoints as FP
 from torch_points_kernels.points_cpu import ball_query
 import numba
@@ -19,13 +15,16 @@ import numba
 from torch_points3d.datasets.multiscale_data import MultiScaleData
 from torch_points3d.datasets.registration.pair import Pair
 from torch_points3d.utils.transform_utils import SamplingStrategy
-from torch_points3d.utils.config import is_list
 from torch_points3d.utils import is_iterable
-from .grid_transform import group_data, GridSampling3D, shuffle_data, GridSampling3D_PCA
+from .grid_transform import GridSampling3D, shuffle_data, GridSampling3D_PCA
 from .features import Random3AxisRotation
 from torch_geometric.transforms.random_rotate import RandomRotate as randomrotate
-from torch_geometric.transforms.center import Center as augcenter 
-from torch_points3d.core.data_transform.features import XYZRelaFeature, XYZFeature, AddFeatsByKeys
+from torch_geometric.transforms.center import Center as augcenter
+from torch_points3d.core.data_transform.features import (
+    XYZRelaFeature,
+    XYZFeature,
+    AddFeatsByKeys,
+)
 
 KDTREE_KEY = "kd_tree"
 
@@ -49,17 +48,20 @@ class RemoveAttributes(object):
         keys = set(data.keys)
         for attr_name in self._attr_names:
             if attr_name not in keys and self._strict:
-                raise Exception("attr_name: {} isn t within keys: {}".format(attr_name, keys))
+                raise Exception(
+                    "attr_name: {} isn t within keys: {}".format(attr_name, keys)
+                )
         for attr_name in self._attr_names:
             delattr(data, attr_name)
         return data
 
     def __repr__(self):
-        return "{}(attr_names={}, strict={})".format(self.__class__.__name__, self._attr_names, self._strict)
+        return "{}(attr_names={}, strict={})".format(
+            self.__class__.__name__, self._attr_names, self._strict
+        )
 
 
 class PointCloudFusion(object):
-
     """This transform is responsible to perform a point cloud fusion from a list of data
 
     - If a list of data is provided -> Create one Batch object with all data
@@ -110,9 +112,13 @@ class GridSphereSampling(object):
 
     def __init__(self, radius, grid_size=None, delattr_kd_tree=True, center=True):
         self._radius = eval(radius) if isinstance(radius, str) else float(radius)
-        self.grid_size = eval(grid_size) if isinstance(grid_size, str) else float(grid_size)
-        #self.grid_size = self.grid_size*1.4
-        self._grid_sampling = GridSampling3D(size=self.grid_size if self.grid_size else self._radius)
+        self.grid_size = (
+            eval(grid_size) if isinstance(grid_size, str) else float(grid_size)
+        )
+        # self.grid_size = self.grid_size*1.4
+        self._grid_sampling = GridSampling3D(
+            size=self.grid_size if self.grid_size else self._radius
+        )
         self._delattr_kd_tree = delattr_kd_tree
         self._center = center
 
@@ -129,9 +135,9 @@ class GridSphereSampling(object):
 
         # apply grid sampling
         grid_data = self._grid_sampling(data.clone())
-        
-        #PCA to find the minimum bounding box of the whole point cloud
-        '''pca = PCA(n_components=3)
+
+        # PCA to find the minimum bounding box of the whole point cloud
+        """pca = PCA(n_components=3)
         pca.fit(data.pos.numpy())
         #data_reduced = data.pos.numpy().copy()
         data_reduced = np.dot(data.pos.numpy() - pca.mean_, pca.components_.T) # transform
@@ -150,10 +156,10 @@ class GridSphereSampling(object):
                 for c_z in np.arange(minz, maxz+self.grid_size, self.grid_size):
                     pick_pca = pca.inverse_transform(np.vstack((c_x, c_y, c_z)).T) 
                     sortedArr.append(pick_pca)
-        sortedArr = np.stack(sortedArr).squeeze()'''
+        sortedArr = np.stack(sortedArr).squeeze()"""
 
         datas = []
-        for grid_center in np.asarray(grid_data.pos):  #sortedArr: 
+        for grid_center in np.asarray(grid_data.pos):  # sortedArr:
             pts = np.asarray(grid_center)[np.newaxis]
 
             # Find closest point within the original data
@@ -162,10 +168,12 @@ class GridSphereSampling(object):
 
             # Find neighbours within the original data
             ind = torch.LongTensor(tree.query_radius(pts, r=self._radius)[0])
-            sampler = SphereSampling(self._radius, grid_center, align_origin=self._center)
+            sampler = SphereSampling(
+                self._radius, grid_center, align_origin=self._center
+            )
             new_data = sampler(data)
             new_data.center_label = grid_label
-            if len(new_data.pos)>0:
+            if len(new_data.pos) > 0:
                 datas.append(new_data)
         return datas
 
@@ -178,9 +186,14 @@ class GridSphereSampling(object):
         return data
 
     def __repr__(self):
-        return "{}(radius={}, center={})".format(self.__class__.__name__, self._radius, self._center)
+        return "{}(radius={}, center={})".format(
+            self.__class__.__name__, self._radius, self._center
+        )
+
 
 from sklearn.decomposition import PCA
+
+
 class GridCylinderSampling(object):
     """Fits the point cloud to a grid and for each point in this grid,
     create a cylinder with a radius r
@@ -201,9 +214,13 @@ class GridCylinderSampling(object):
 
     def __init__(self, radius, grid_size=None, delattr_kd_tree=True, center=True):
         self._radius = eval(radius) if isinstance(radius, str) else float(radius)
-        self.grid_size = eval(grid_size) if isinstance(grid_size, str) else float(grid_size)
-        self._grid_sampling = GridSampling3D_PCA(size=self.grid_size if self.grid_size else self._radius)
-        #self._grid_sampling = GridSampling3D(size=grid_size if grid_size else self._radius)
+        self.grid_size = (
+            eval(grid_size) if isinstance(grid_size, str) else float(grid_size)
+        )
+        self._grid_sampling = GridSampling3D_PCA(
+            size=self.grid_size if self.grid_size else self._radius
+        )
+        # self._grid_sampling = GridSampling3D(size=grid_size if grid_size else self._radius)
         self._delattr_kd_tree = delattr_kd_tree
         self._center = center
 
@@ -218,30 +235,32 @@ class GridCylinderSampling(object):
         if hasattr(data, self.KDTREE_KEY) and self._delattr_kd_tree:
             delattr(data, self.KDTREE_KEY)
 
-        #PCA to find the minimum bounding box of the whole point cloud
+        # PCA to find the minimum bounding box of the whole point cloud
         pca = PCA(n_components=2)
-        pca.fit(data.pos.numpy()[:,0:-1])
+        pca.fit(data.pos.numpy()[:, 0:-1])
         data_reduced = data.pos.numpy().copy()
-        data_reduced[:,0:-1] = np.dot(data.pos.numpy()[:,0:-1] - pca.mean_, pca.components_.T) # transform
-        minx = np.min(data_reduced[:,0])
-        miny = np.min(data_reduced[:,1])
-        maxx = np.max(data_reduced[:,0])
-        maxy = np.max(data_reduced[:,1])
+        data_reduced[:, 0:-1] = np.dot(
+            data.pos.numpy()[:, 0:-1] - pca.mean_, pca.components_.T
+        )  # transform
+        minx = np.min(data_reduced[:, 0])
+        miny = np.min(data_reduced[:, 1])
+        maxx = np.max(data_reduced[:, 0])
+        maxy = np.max(data_reduced[:, 1])
 
-        sortedArr=[]
-        #Slide spherical bounding box 
-        for c_x in np.arange(minx, maxx+self.grid_size, self.grid_size):
-            for c_y in np.arange(miny, maxy+self.grid_size, self.grid_size):
-                pick_pca = pca.inverse_transform(np.vstack((c_x, c_y)).T) 
+        sortedArr = []
+        # Slide spherical bounding box
+        for c_x in np.arange(minx, maxx + self.grid_size, self.grid_size):
+            for c_y in np.arange(miny, maxy + self.grid_size, self.grid_size):
+                pick_pca = pca.inverse_transform(np.vstack((c_x, c_y)).T)
                 sortedArr.append(pick_pca)
         sortedArr = np.stack(sortedArr).squeeze()
         # apply grid sampling
-        #grid_data = self._grid_sampling(data.clone())
+        # grid_data = self._grid_sampling(data.clone())
 
         datas = []
-        #centerpoints = np.unique(grid_data.pos[:, :-1], axis=0)
-        #sortedArr = centerpoints[centerpoints[:,1].argsort()]
-        for grid_center in sortedArr: #np.unique(grid_data.pos[:, :-1], axis=0):
+        # centerpoints = np.unique(grid_data.pos[:, :-1], axis=0)
+        # sortedArr = centerpoints[centerpoints[:,1].argsort()]
+        for grid_center in sortedArr:  # np.unique(grid_data.pos[:, :-1], axis=0):
             pts = np.asarray(grid_center)[np.newaxis]
 
             # Find closest point within the original data
@@ -250,10 +269,12 @@ class GridCylinderSampling(object):
 
             # Find neighbours within the original data
             ind = torch.LongTensor(tree.query_radius(pts, r=self._radius)[0])
-            sampler = CylinderSampling(self._radius, grid_center, align_origin=self._center)
+            sampler = CylinderSampling(
+                self._radius, grid_center, align_origin=self._center
+            )
             new_data = sampler(data)
             new_data.center_label = grid_label
-            if len(new_data.pos)>0:
+            if len(new_data.pos) > 0:
                 datas.append(new_data)
         return datas
 
@@ -266,7 +287,9 @@ class GridCylinderSampling(object):
         return data
 
     def __repr__(self):
-        return "{}(radius={}, center={})".format(self.__class__.__name__, self._radius, self._center)
+        return "{}(radius={}, center={})".format(
+            self.__class__.__name__, self._radius, self._center
+        )
 
 
 class ComputeKDTree(object):
@@ -310,16 +333,22 @@ class RandomSphere(object):
         if True then the sphere will be moved to the origin
     """
 
-    def __init__(self, radius, strategy="random", class_weight_method="sqrt", center=True):
+    def __init__(
+        self, radius, strategy="random", class_weight_method="sqrt", center=True
+    ):
         self._radius = eval(radius) if isinstance(radius, str) else float(radius)
-        self._sampling_strategy = SamplingStrategy(strategy=strategy, class_weight_method=class_weight_method)
+        self._sampling_strategy = SamplingStrategy(
+            strategy=strategy, class_weight_method=class_weight_method
+        )
         self._center = center
 
     def _process(self, data):
         # apply sampling strategy
         random_center = self._sampling_strategy(data)
         random_center = np.asarray(data.pos[random_center])[np.newaxis]
-        sphere_sampling = SphereSampling(self._radius, random_center, align_origin=self._center)
+        sphere_sampling = SphereSampling(
+            self._radius, random_center, align_origin=self._center
+        )
         return sphere_sampling(data)
 
     def __call__(self, data):
@@ -336,7 +365,7 @@ class RandomSphere(object):
 
 
 class SphereSampling:
-    """ Samples points within a sphere
+    """Samples points within a sphere
 
     Parameters
     ----------
@@ -388,7 +417,7 @@ class SphereSampling:
 
 
 class CylinderSampling:
-    """ Samples points within a cylinder
+    """Samples points within a cylinder
 
     Parameters
     ----------
@@ -443,7 +472,7 @@ class CylinderSampling:
 
 
 class Select:
-    """ Selects given points from a data object
+    """Selects given points from a data object
 
     Parameters
     ----------
@@ -470,9 +499,7 @@ class Select:
 
 
 class CylinderNormalizeScale(object):
-    """ Normalize points within a cylinder
-
-    """
+    """Normalize points within a cylinder"""
 
     def __init__(self, normalize_z=True):
         self._normalize_z = normalize_z
@@ -498,7 +525,7 @@ class CylinderNormalizeScale(object):
 
 
 class RandomSymmetry(object):
-    """ Apply a random symmetry transformation on the data
+    """Apply a random symmetry transformation on the data
 
     Parameters
     ----------
@@ -510,7 +537,6 @@ class RandomSymmetry(object):
         self.axis = axis
 
     def __call__(self, data):
-
         for i, ax in enumerate(self.axis):
             if ax:
                 if torch.rand(1) < 0.5:
@@ -523,7 +549,7 @@ class RandomSymmetry(object):
 
 
 class RandomNoise(object):
-    """ Simple isotropic additive gaussian noise (Jitter)
+    """Simple isotropic additive gaussian noise (Jitter)
 
     Parameters
     ----------
@@ -544,7 +570,9 @@ class RandomNoise(object):
         return data
 
     def __repr__(self):
-        return "{}(sigma={}, clip={})".format(self.__class__.__name__, self.sigma, self.clip)
+        return "{}(sigma={}, clip={})".format(
+            self.__class__.__name__, self.sigma, self.clip
+        )
 
 
 class ScalePos:
@@ -601,8 +629,7 @@ class RandomScaleAnisotropic:
 
 
 class MeshToNormal(object):
-    """ Computes mesh normals (IN PROGRESS)
-    """
+    """Computes mesh normals (IN PROGRESS)"""
 
     def __init__(self):
         pass
@@ -612,7 +639,9 @@ class MeshToNormal(object):
             pos = data.pos
             face = data.face
             vertices = [pos[f] for f in face]
-            normals = torch.cross(vertices[0] - vertices[1], vertices[0] - vertices[2], dim=1)
+            normals = torch.cross(
+                vertices[0] - vertices[1], vertices[0] - vertices[2], dim=1
+            )
             normals = F.normalize(normals)
             data.normals = normals
         return data
@@ -622,7 +651,7 @@ class MeshToNormal(object):
 
 
 class MultiScaleTransform(object):
-    """ Pre-computes a sequence of downsampling / neighboorhood search on the CPU.
+    """Pre-computes a sequence of downsampling / neighboorhood search on the CPU.
     This currently only works on PARTIAL_DENSE formats
 
     Parameters
@@ -653,7 +682,10 @@ class MultiScaleTransform(object):
         upsample = []
         upsample_index = 0
         for index in range(self.num_layers):
-            sampler, neighbour_finder = self.strategies["sampler"][index], self.strategies["neighbour_finder"][index]
+            sampler, neighbour_finder = (
+                self.strategies["sampler"][index],
+                self.strategies["neighbour_finder"][index],
+            )
             support = precomputed[index]
             new_data = Data(pos=support.pos)
             if sampler:
@@ -662,7 +694,9 @@ class MultiScaleTransform(object):
 
                 if len(self.strategies["upsample_op"]):
                     if upsample_index >= len(self.strategies["upsample_op"]):
-                        raise ValueError("You are missing some upsample blocks in your network")
+                        raise ValueError(
+                            "You are missing some upsample blocks in your network"
+                        )
 
                     upsampler = self.strategies["upsample_op"][upsample_index]
                     upsample_index += 1
@@ -671,7 +705,11 @@ class MultiScaleTransform(object):
                     special_params = {}
                     special_params["x_idx"] = query.num_nodes
                     special_params["y_idx"] = support.num_nodes
-                    setattr(pre_up, "__inc__", self.__inc__wrapper(pre_up.__inc__, special_params))
+                    setattr(
+                        pre_up,
+                        "__inc__",
+                        self.__inc__wrapper(pre_up.__inc__, special_params),
+                    )
             else:
                 query = new_data
 
@@ -684,11 +722,15 @@ class MultiScaleTransform(object):
                     torch.zeros((q_pos.shape[0]), dtype=torch.long),
                 )
 
-            idx_neighboors = neighbour_finder(s_pos, q_pos, batch_x=s_batch, batch_y=q_batch)
+            idx_neighboors = neighbour_finder(
+                s_pos, q_pos, batch_x=s_batch, batch_y=q_batch
+            )
             special_params = {}
             special_params["idx_neighboors"] = s_pos.shape[0]
             setattr(query, "idx_neighboors", idx_neighboors)
-            setattr(query, "__inc__", self.__inc__wrapper(query.__inc__, special_params))
+            setattr(
+                query, "__inc__", self.__inc__wrapper(query.__inc__, special_params)
+            )
             precomputed.append(query)
         ms_data.multiscale = precomputed[1:]
         upsample.reverse()  # Switch to inner layer first
@@ -700,8 +742,7 @@ class MultiScaleTransform(object):
 
 
 class ShuffleData(object):
-    """ This transform allow to shuffle feature, pos and label tensors within data
-    """
+    """This transform allow to shuffle feature, pos and label tensors within data"""
 
     def _process(self, data):
         return shuffle_data(data)
@@ -734,7 +775,7 @@ class PairTransform(object):
 
 
 class ShiftVoxels:
-    """ Trick to make Sparse conv invariant to even and odds coordinates
+    """Trick to make Sparse conv invariant to even and odds coordinates
     https://github.com/chrischoy/SpatioTemporalSegmentation/blob/master/lib/train.py#L78
 
     Parameters
@@ -752,7 +793,9 @@ class ShiftVoxels:
                 raise Exception("should quantize first using GridSampling3D")
 
             if not isinstance(data.coords, torch.IntTensor):
-                raise Exception("The pos are expected to be coordinates, so torch.IntTensor")
+                raise Exception(
+                    "The pos are expected to be coordinates, so torch.IntTensor"
+                )
             data.coords[:, :3] += (torch.rand(3) * 100).type_as(data.coords)
         return data
 
@@ -761,7 +804,7 @@ class ShiftVoxels:
 
 
 class RandomDropout:
-    """ Randomly drop points from the input data
+    """Randomly drop points from the input data
 
     Parameters
     ----------
@@ -771,7 +814,9 @@ class RandomDropout:
         chances of the dropout to be applied
     """
 
-    def __init__(self, dropout_ratio: float = 0.2, dropout_application_ratio: float = 0.5):
+    def __init__(
+        self, dropout_ratio: float = 0.2, dropout_application_ratio: float = 0.5
+    ):
         self.dropout_ratio = dropout_ratio
         self.dropout_application_ratio = dropout_application_ratio
 
@@ -846,9 +891,10 @@ class RandomWalkDropout(object):
         self.skip_keys = skip_keys
 
     def __call__(self, data):
-
         pos = data.pos.detach().cpu().numpy()
-        ind, dist = ball_query(data.pos, data.pos, radius=self.radius, max_num=self.max_num, mode=0)
+        ind, dist = ball_query(
+            data.pos, data.pos, radius=self.radius, max_num=self.max_num, mode=0
+        )
         mask = np.ones(len(pos), dtype=bool)
         mask = rw_mask(
             pos=pos,
@@ -865,7 +911,12 @@ class RandomWalkDropout(object):
 
     def __repr__(self):
         return "{}(dropout_ratio={}, num_iter={}, radius={}, max_num={}, skip_keys={})".format(
-            self.__class__.__name__, self.dropout_ratio, self.num_iter, self.radius, self.max_num, self.skip_keys
+            self.__class__.__name__,
+            self.dropout_ratio,
+            self.num_iter,
+            self.radius,
+            self.max_num,
+            self.skip_keys,
         )
 
 
@@ -883,13 +934,19 @@ class RandomSphereDropout(object):
         radius of the spheres
     """
 
-    def __init__(self, num_sphere: int = 10, radius: float = 5, grid_size_center: float = 0.01, skip_keys: List = [],):
+    def __init__(
+        self,
+        num_sphere: int = 10,
+        radius: float = 5,
+        grid_size_center: float = 0.01,
+        skip_keys: List = [],
+    ):
         self.num_sphere = num_sphere
         self.radius = radius
         self.grid_sampling = GridSampling3D(grid_size_center, mode="last")
         self.skip_keys = skip_keys
-    def __call__(self, data):
 
+    def __call__(self, data):
         data_c = self.grid_sampling(data.clone())
         list_ind = torch.randint(0, len(data_c.pos), (self.num_sphere,))
         center = data_c.pos[list_ind]
@@ -905,7 +962,9 @@ class RandomSphereDropout(object):
         return data
 
     def __repr__(self):
-        return "{}(num_sphere={}, radius={})".format(self.__class__.__name__, self.num_sphere, self.radius)
+        return "{}(num_sphere={}, radius={})".format(
+            self.__class__.__name__, self.num_sphere, self.radius
+        )
 
 
 class FixedSphereDropout(object):
@@ -922,18 +981,23 @@ class FixedSphereDropout(object):
         radius of the spheres
     """
 
-    def __init__(self, centers: List[List[float]] = [[0, 0, 0]], name_ind=None, radius: float = 1):
+    def __init__(
+        self, centers: List[List[float]] = [[0, 0, 0]], name_ind=None, radius: float = 1
+    ):
         self.centers = torch.tensor(centers)
         self.radius = radius
         self.name_ind = name_ind
 
     def __call__(self, data):
-
         if self.name_ind is None:
-            ind, dist = ball_query(data.pos, self.centers, radius=self.radius, max_num=-1, mode=1)
+            ind, dist = ball_query(
+                data.pos, self.centers, radius=self.radius, max_num=-1, mode=1
+            )
         else:
             center = data.pos[data[self.name_ind].long()]
-            ind, dist = ball_query(data.pos, center, radius=self.radius, max_num=-1, mode=1)
+            ind, dist = ball_query(
+                data.pos, center, radius=self.radius, max_num=-1, mode=1
+            )
         ind = ind[dist[:, 0] > 0]
         mask = torch.ones(len(data.pos), dtype=torch.bool)
         mask[ind[:, 0]] = False
@@ -942,7 +1006,9 @@ class FixedSphereDropout(object):
         return data
 
     def __repr__(self):
-        return "{}(centers={}, radius={})".format(self.__class__.__name__, self.centers, self.radius)
+        return "{}(centers={}, radius={})".format(
+            self.__class__.__name__, self.centers, self.radius
+        )
 
 
 class SphereCrop(object):
@@ -962,7 +1028,9 @@ class SphereCrop(object):
 
     def __call__(self, data):
         i = torch.randint(0, len(data.pos), (1,))
-        ind, dist = ball_query(data.pos, data.pos[i].view(1, 3), radius=self.radius, max_num=-1, mode=1)
+        ind, dist = ball_query(
+            data.pos, data.pos[i].view(1, 3), radius=self.radius, max_num=-1, mode=1
+        )
         ind = ind[dist[:, 0] > 0]
         size_pos = len(data.pos)
         for k in data.keys:
@@ -992,10 +1060,17 @@ class CubeCrop(object):
     """
 
     def __init__(
-        self, c: float = 1, rot_x: float = 180, rot_y: float = 180, rot_z: float = 180, grid_size_center: float = 0.01
+        self,
+        c: float = 1,
+        rot_x: float = 180,
+        rot_y: float = 180,
+        rot_z: float = 180,
+        grid_size_center: float = 0.01,
     ):
         self.c = c
-        self.random_rotation = Random3AxisRotation(rot_x=rot_x, rot_y=rot_y, rot_z=rot_z)
+        self.random_rotation = Random3AxisRotation(
+            rot_x=rot_x, rot_y=rot_y, rot_z=rot_z
+        )
         self.grid_sampling = GridSampling3D(grid_size_center, mode="last")
 
     def __call__(self, data):
@@ -1008,22 +1083,30 @@ class CubeCrop(object):
         data_temp.pos = data_temp.pos - center
         data_temp = self.random_rotation(data_temp)
         data_temp.pos = data_temp.pos + center
-        mask = torch.prod((data_temp.pos - min_square) > 0, dim=1) * torch.prod((max_square - data_temp.pos) > 0, dim=1)
+        mask = torch.prod((data_temp.pos - min_square) > 0, dim=1) * torch.prod(
+            (max_square - data_temp.pos) > 0, dim=1
+        )
         mask = mask.to(torch.bool)
         data = apply_mask(data, mask)
         return data
 
     def __repr__(self):
-        return "{}(c={}, rotation={})".format(self.__class__.__name__, self.c, self.random_rotation)
+        return "{}(c={}, rotation={})".format(
+            self.__class__.__name__, self.c, self.random_rotation
+        )
 
 
 class EllipsoidCrop(object):
-    """
-
-    """
+    """ """
 
     def __init__(
-        self, a: float = 1, b: float = 1, c: float = 1, rot_x: float = 180, rot_y: float = 180, rot_z: float = 180
+        self,
+        a: float = 1,
+        b: float = 1,
+        c: float = 1,
+        rot_x: float = 180,
+        rot_y: float = 180,
+        rot_z: float = 180,
     ):
         """
         Crop with respect to an ellipsoid.
@@ -1040,13 +1123,19 @@ class EllipsoidCrop(object):
 
 
         """
-        self._a2 = a ** 2
-        self._b2 = b ** 2
-        self._c2 = c ** 2
-        self.random_rotation = Random3AxisRotation(rot_x=rot_x, rot_y=rot_y, rot_z=rot_z)
+        self._a2 = a**2
+        self._b2 = b**2
+        self._c2 = c**2
+        self.random_rotation = Random3AxisRotation(
+            rot_x=rot_x, rot_y=rot_y, rot_z=rot_z
+        )
 
     def _compute_mask(self, pos: torch.Tensor):
-        mask = (pos[:, 0] ** 2 / self._a2 + pos[:, 1] ** 2 / self._b2 + pos[:, 2] ** 2 / self._c2) < 1
+        mask = (
+            pos[:, 0] ** 2 / self._a2
+            + pos[:, 1] ** 2 / self._b2
+            + pos[:, 2] ** 2 / self._c2
+        ) < 1
         return mask
 
     def __call__(self, data):
@@ -1061,7 +1150,11 @@ class EllipsoidCrop(object):
 
     def __repr__(self):
         return "{}(a={}, b={}, c={}, rotation={})".format(
-            self.__class__.__name__, np.sqrt(self._a2), np.sqrt(self._b2), np.sqrt(self._c2), self.random_rotation
+            self.__class__.__name__,
+            np.sqrt(self._a2),
+            np.sqrt(self._b2),
+            np.sqrt(self._c2),
+            self.random_rotation,
         )
 
 
@@ -1086,8 +1179,9 @@ class DensityFilter(object):
         self.skip_keys = skip_keys
 
     def __call__(self, data):
-
-        ind, dist = ball_query(data.pos, data.pos, radius=self.radius_nn, max_num=-1, mode=0)
+        ind, dist = ball_query(
+            data.pos, data.pos, radius=self.radius_nn, max_num=-1, mode=0
+        )
 
         mask = (dist > 0).sum(1) > self.min_num
         data = apply_mask(data, mask, self.skip_keys)
@@ -1105,21 +1199,19 @@ class IrregularSampling(object):
     """
 
     def __init__(self, d_half=2.5, p=2, grid_size_center=0.1, skip_keys=[]):
-
         self.d_half = d_half
         self.p = p
         self.skip_keys = skip_keys
         self.grid_sampling = GridSampling3D(grid_size_center, mode="last")
 
     def __call__(self, data):
-
         data_temp = self.grid_sampling(data.clone())
         i = torch.randint(0, len(data_temp.pos), (1,))
         center = data_temp.pos[i]
 
         d_p = (torch.abs(data.pos - center) ** self.p).sum(1)
 
-        sigma_2 = (self.d_half ** self.p) / (2 * np.log(2))
+        sigma_2 = (self.d_half**self.p) / (2 * np.log(2))
         thresh = torch.exp(-d_p / (2 * sigma_2))
 
         mask = torch.rand(len(data.pos)) < thresh
@@ -1127,7 +1219,9 @@ class IrregularSampling(object):
         return data
 
     def __repr__(self):
-        return "{}(d_half={}, p={}, skip_keys={})".format(self.__class__.__name__, self.d_half, self.p, self.skip_keys)
+        return "{}(d_half={}, p={}, skip_keys={})".format(
+            self.__class__.__name__, self.d_half, self.p, self.skip_keys
+        )
 
 
 class PeriodicSampling(object):
@@ -1136,14 +1230,12 @@ class PeriodicSampling(object):
     """
 
     def __init__(self, period=0.1, prop=0.1, box_multiplier=1, skip_keys=[]):
-
         self.pulse = 2 * np.pi / period
         self.thresh = np.cos(self.pulse * prop * period * 0.5)
         self.box_multiplier = box_multiplier
         self.skip_keys = skip_keys
 
     def __call__(self, data):
-
         data_temp = data.clone()
         max_p = data_temp.pos.max(0)[0]
         min_p = data_temp.pos.min(0)[0]
@@ -1156,33 +1248,41 @@ class PeriodicSampling(object):
 
     def __repr__(self):
         return "{}(pulse={}, thresh={}, box_mullti={}, skip_keys={})".format(
-            self.__class__.__name__, self.pulse, self.thresh, self.box_multiplier, self.skip_keys
+            self.__class__.__name__,
+            self.pulse,
+            self.thresh,
+            self.box_multiplier,
+            self.skip_keys,
         )
 
+
 class Mix3D(object):
-    """ Mix3D
-        https://arxiv.org/abs/2110.02210
+    """Mix3D
+    https://arxiv.org/abs/2110.02210
     """
 
     def __init__(self):
         pass
 
     def __call__(self, data, data2):
-
-        #basic date augmentation
+        # basic date augmentation
         aug_noise = RandomNoise(sigma=0.01)
         data = aug_noise(data)
         aug_rotate = randomrotate((-180, 180), axis=2)
         data = aug_rotate(data)
         aug_scale = RandomScaleAnisotropic([0.9, 1.1])
         data = aug_scale(data)
-        aug_symmetry = RandomSymmetry([True,False,False])
+        aug_symmetry = RandomSymmetry([True, False, False])
         data = aug_symmetry(data)
         aug_addrelaxyz = XYZRelaFeature(add_x=True, add_y=True, add_z=True)
         data = aug_addrelaxyz(data)
         aug_addz = XYZFeature(add_x=False, add_y=False, add_z=True)
         data = aug_addz(data)
-        aug_addfeatures = AddFeatsByKeys(list_add_to_x=[True, True, True, True], feat_names=['pos_x_rela', 'pos_y_rela', 'pos_z_rela', 'pos_z'], delete_feats=[True, True, True, True])
+        aug_addfeatures = AddFeatsByKeys(
+            list_add_to_x=[True, True, True, True],
+            feat_names=["pos_x_rela", "pos_y_rela", "pos_z_rela", "pos_z"],
+            delete_feats=[True, True, True, True],
+        )
         data = aug_addfeatures(data)
         aug_center = augcenter()
         data = aug_center(data)
@@ -1190,7 +1290,7 @@ class Mix3D(object):
         data = aug_grid(data)
         aug_shift = ShiftVoxels()
         data = aug_shift(data)
-    
+
         data2 = aug_noise(data2)
         data2 = aug_rotate(data2)
         data2 = aug_scale(data2)
@@ -1201,19 +1301,20 @@ class Mix3D(object):
         data2 = aug_center(data2)
         data2 = aug_grid(data2)
         data2 = aug_shift(data2)
-        
+
         # 3D mix
-        un = torch.max(data['instance_labels']).item()
-        data2['instance_labels'] = data2['instance_labels'] + un
+        un = torch.max(data["instance_labels"]).item()
+        data2["instance_labels"] = data2["instance_labels"] + un
         for key in data.keys:
-            if key == 'grid_size':
+            if key == "grid_size":
                 continue
             data[key] = torch.cat((data[key], data2[key]), 0)
-            
+
         return data
 
     def __repr__(self):
         return "Mix3D"
+
 
 def generate_true_false_vector(length, true_percentage):
     vector = []
@@ -1224,14 +1325,16 @@ def generate_true_false_vector(length, true_percentage):
             vector.append(False)
     return vector
 
+
 def isin_tensor(input, values):
     mask = torch.zeros_like(input, dtype=torch.bool)
     for value in values:
         mask |= torch.eq(input, value)
     return mask
 
+
 class Tree3DMix(object):
-    """ 
+    """
     Tree3DMix
     """
 
@@ -1239,47 +1342,48 @@ class Tree3DMix(object):
         pass
 
     def __call__(self, data, data2, stuff_classes):
-
-        #basic date augmentation
+        # basic date augmentation
         aug_noise = RandomNoise(sigma=0.01)
         aug_rotate = randomrotate((-180, 180), axis=2)
         aug_scale = RandomScaleAnisotropic([0.9, 1.1])
-        aug_symmetry = RandomSymmetry([True,False,False])
+        aug_symmetry = RandomSymmetry([True, False, False])
         aug_center = augcenter()
-        
-        #replaced by tree instances from input data2
-        idx_stuff = isin_tensor(data['y'], stuff_classes)
+
+        # replaced by tree instances from input data2
+        idx_stuff = isin_tensor(data["y"], stuff_classes)
         idx_things = ~idx_stuff
-        un1 = torch.unique(data['instance_labels'][idx_things])
-        replace_v = generate_true_false_vector(un1.shape[0], 70)  #randomly choose 70% tree instances to be replaced
-        idx_stuff2 = isin_tensor(data2['y'], stuff_classes)
+        un1 = torch.unique(data["instance_labels"][idx_things])
+        replace_v = generate_true_false_vector(
+            un1.shape[0], 70
+        )  # randomly choose 70% tree instances to be replaced
+        idx_stuff2 = isin_tensor(data2["y"], stuff_classes)
         idx_things2 = ~idx_stuff2
-        data2['instance_labels'] = data2['instance_labels']+un1.max()
-        un2 = torch.unique(data2['instance_labels'][idx_things2])
+        data2["instance_labels"] = data2["instance_labels"] + un1.max()
+        un2 = torch.unique(data2["instance_labels"][idx_things2])
         max_instance_id = torch.max(un2)
         datacopyori = data.to_dict()
         datatreemix = Data.from_dict(datacopyori)
         for i, insId in enumerate(un1):
-            if replace_v[i]==True:  #local augmentations for the insert tree instance
-                idx = datatreemix['instance_labels']!=insId
-                tree_replaced_id = datatreemix['instance_labels']==insId
+            if replace_v[i] == True:  # local augmentations for the insert tree instance
+                idx = datatreemix["instance_labels"] != insId
+                tree_replaced_id = datatreemix["instance_labels"] == insId
                 datacopy = datatreemix.to_dict()
                 data1remain = Data.from_dict(datacopy)
                 for key in datatreemix.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     data1remain[key] = datatreemix[key][idx]
                 tree_replaced = Data.from_dict(datacopy)
                 for key in datatreemix.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     tree_replaced[key] = datatreemix[key][tree_replaced_id]
                 tree_replace_id = random.randrange(un2.shape[0])
-                idx2 = data2['instance_labels']==un2[tree_replace_id]
+                idx2 = data2["instance_labels"] == un2[tree_replace_id]
                 datacopy2 = data2.to_dict()
                 dataInsert = Data.from_dict(datacopy2)
                 for key in data2.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     dataInsert[key] = data2[key][idx2]
                 dataInsert = aug_center(dataInsert)
@@ -1287,61 +1391,84 @@ class Tree3DMix(object):
                 dataInsert = aug_rotate(dataInsert)
                 dataInsert = aug_scale(dataInsert)
                 dataInsert = aug_symmetry(dataInsert)
-                dataInsert['pos'][:,0:2] = dataInsert['pos'][:,0:2] - (dataInsert['pos'][:,0:2].mean(axis=0)-tree_replaced['pos'][:,0:2].mean(axis=0))
-                if torch.min(tree_replaced['pos'][:,2], 0).values<torch.max(data['pos'][idx_stuff][:,2], 0).values:
-                    dataInsert['pos'][:,2] = dataInsert['pos'][:,2] - (torch.min(dataInsert['pos'][:,2], 0).values-torch.min(tree_replaced['pos'][:,2], 0).values)
+                dataInsert["pos"][:, 0:2] = dataInsert["pos"][:, 0:2] - (
+                    dataInsert["pos"][:, 0:2].mean(axis=0)
+                    - tree_replaced["pos"][:, 0:2].mean(axis=0)
+                )
+                if (
+                    torch.min(tree_replaced["pos"][:, 2], 0).values
+                    < torch.max(data["pos"][idx_stuff][:, 2], 0).values
+                ):
+                    dataInsert["pos"][:, 2] = dataInsert["pos"][:, 2] - (
+                        torch.min(dataInsert["pos"][:, 2], 0).values
+                        - torch.min(tree_replaced["pos"][:, 2], 0).values
+                    )
                 else:
-                    dataInsert['pos'][:,2] = dataInsert['pos'][:,2] - (torch.min(dataInsert['pos'][:,2], 0).values-torch.max(data['pos'][idx_stuff][:,2], 0).values)
-                #dataInsert['y'] = dataInsert['y'] - tree_replaced['y'].mean()
-                #dataInsert['z'] = dataInsert['z'] - tree_replaced['z'].mean()
-                #dataMix = torch.cat((data1remain, dataInsert), 0)
-                if dataInsert['instance_labels'][0] in datatreemix['instance_labels']:
-                    dataInsert['instance_labels'] = torch.full(dataInsert['instance_labels'].shape, max_instance_id+1) 
-                    max_instance_id = max_instance_id+1
+                    dataInsert["pos"][:, 2] = dataInsert["pos"][:, 2] - (
+                        torch.min(dataInsert["pos"][:, 2], 0).values
+                        - torch.max(data["pos"][idx_stuff][:, 2], 0).values
+                    )
+                # dataInsert['y'] = dataInsert['y'] - tree_replaced['y'].mean()
+                # dataInsert['z'] = dataInsert['z'] - tree_replaced['z'].mean()
+                # dataMix = torch.cat((data1remain, dataInsert), 0)
+                if dataInsert["instance_labels"][0] in datatreemix["instance_labels"]:
+                    dataInsert["instance_labels"] = torch.full(
+                        dataInsert["instance_labels"].shape, max_instance_id + 1
+                    )
+                    max_instance_id = max_instance_id + 1
                 datacopy = data1remain.to_dict()
                 datatreemix = Data.from_dict(datacopy)
                 for key in data1remain.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     datatreemix[key] = torch.cat((data1remain[key], dataInsert[key]), 0)
-        datatreemix['forest_name2'] = data2['forest_name']
-        _, datatreemix['instance_labels'] = torch.unique(datatreemix['instance_labels'],return_inverse=True)
-        
+        datatreemix["forest_name2"] = data2["forest_name"]
+        _, datatreemix["instance_labels"] = torch.unique(
+            datatreemix["instance_labels"], return_inverse=True
+        )
+
         # 3D mix
-        #un = torch.max(data['instance_labels']).item()
-        #data2['instance_labels'] = data2['instance_labels'] + un
-        #for key in data.keys:
+        # un = torch.max(data['instance_labels']).item()
+        # data2['instance_labels'] = data2['instance_labels'] + un
+        # for key in data.keys:
         #    if key == 'grid_size':
         #        continue
         #    data[key] = torch.cat((data[key], data2[key]), 0)
-            
+
         return datatreemix
 
     def __repr__(self):
         return "Tree3DMix"
+
+
 from pykdtree.kdtree import KDTree as KDTree2
+
+
 def calculate_overlap(point_cloud1, point_cloud2, threshold):
     """
     Calculate the spatial overlap between two point clouds using KD-trees with tensors.
-    
+
     Args:
         point_cloud1 (torch.Tensor): First point cloud, shape (N, 3).
         point_cloud2_tree (torch.Tensor): kdtree of the second point cloud, shape (M, 3).
         threshold (float): Maximum distance for a point to be considered overlapping.
-        
+
     Returns:
         float: Overlap ratio between the two point clouds.
     """
-    
+
     tree = KDTree2(point_cloud2.detach().numpy())
-    distances, _ = tree.query(point_cloud1.detach().numpy(), k=1, distance_upper_bound=threshold)
-    valid_distances = distances != float('inf')
+    distances, _ = tree.query(
+        point_cloud1.detach().numpy(), k=1, distance_upper_bound=threshold
+    )
+    valid_distances = distances != float("inf")
     num_overlap = torch.sum(torch.from_numpy(valid_distances))
     overlap_ratio = num_overlap / len(point_cloud1)
     return overlap_ratio
 
+
 class Tree3DMix2(object):
-    """ 
+    """
     Tree3DMix2 prevent tree instances overlap
     """
 
@@ -1349,47 +1476,48 @@ class Tree3DMix2(object):
         pass
 
     def __call__(self, data, data2, stuff_classes):
-
-        #basic date augmentation
+        # basic date augmentation
         aug_noise = RandomNoise(sigma=0.01)
         aug_rotate = randomrotate((-180, 180), axis=2)
         aug_scale = RandomScaleAnisotropic([0.9, 1.1])
-        aug_symmetry = RandomSymmetry([True,False,False])
+        aug_symmetry = RandomSymmetry([True, False, False])
         aug_center = augcenter()
-        
-        #replaced by tree instances from input data2
-        idx_stuff = isin_tensor(data['y'], stuff_classes)
+
+        # replaced by tree instances from input data2
+        idx_stuff = isin_tensor(data["y"], stuff_classes)
         idx_things = ~idx_stuff
-        un1 = torch.unique(data['instance_labels'][idx_things])
-        replace_v = generate_true_false_vector(un1.shape[0], 70)  #randomly choose 30% tree instances to be replaced
-        idx_stuff2 = isin_tensor(data2['y'], stuff_classes)
+        un1 = torch.unique(data["instance_labels"][idx_things])
+        replace_v = generate_true_false_vector(
+            un1.shape[0], 70
+        )  # randomly choose 30% tree instances to be replaced
+        idx_stuff2 = isin_tensor(data2["y"], stuff_classes)
         idx_things2 = ~idx_stuff2
-        data2['instance_labels'] = data2['instance_labels']+un1.max()
-        un2 = torch.unique(data2['instance_labels'][idx_things2])
+        data2["instance_labels"] = data2["instance_labels"] + un1.max()
+        un2 = torch.unique(data2["instance_labels"][idx_things2])
         max_instance_id = torch.max(un2)
         datacopyori = data.to_dict()
         datatreemix = Data.from_dict(datacopyori)
         for i, insId in enumerate(un1):
-            if replace_v[i]==True:  #local augmentations for the insert tree instance
-                idx = datatreemix['instance_labels']!=insId
-                tree_replaced_id = datatreemix['instance_labels']==insId
+            if replace_v[i] == True:  # local augmentations for the insert tree instance
+                idx = datatreemix["instance_labels"] != insId
+                tree_replaced_id = datatreemix["instance_labels"] == insId
                 datacopy = datatreemix.to_dict()
                 data1remain = Data.from_dict(datacopy)
                 for key in datatreemix.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     data1remain[key] = datatreemix[key][idx]
                 tree_replaced = Data.from_dict(datacopy)
                 for key in datatreemix.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     tree_replaced[key] = datatreemix[key][tree_replaced_id]
                 tree_replace_id = random.randrange(un2.shape[0])
-                idx2 = data2['instance_labels']==un2[tree_replace_id]
+                idx2 = data2["instance_labels"] == un2[tree_replace_id]
                 datacopy2 = data2.to_dict()
                 dataInsert = Data.from_dict(datacopy2)
                 for key in data2.keys:
-                    if key == 'grid_size' or key == 'forest_name':
+                    if key == "grid_size" or key == "forest_name":
                         continue
                     dataInsert[key] = data2[key][idx2]
                 dataInsert = aug_center(dataInsert)
@@ -1397,31 +1525,51 @@ class Tree3DMix2(object):
                 dataInsert = aug_rotate(dataInsert)
                 dataInsert = aug_scale(dataInsert)
                 dataInsert = aug_symmetry(dataInsert)
-                dataInsert['pos'][:,0:2] = dataInsert['pos'][:,0:2] - (dataInsert['pos'][:,0:2].mean(axis=0)-tree_replaced['pos'][:,0:2].mean(axis=0))
-                if torch.min(tree_replaced['pos'][:,2], 0).values<torch.max(data['pos'][idx_stuff][:,2], 0).values:
-                    dataInsert['pos'][:,2] = dataInsert['pos'][:,2] - (torch.min(dataInsert['pos'][:,2], 0).values-torch.min(tree_replaced['pos'][:,2], 0).values)
+                dataInsert["pos"][:, 0:2] = dataInsert["pos"][:, 0:2] - (
+                    dataInsert["pos"][:, 0:2].mean(axis=0)
+                    - tree_replaced["pos"][:, 0:2].mean(axis=0)
+                )
+                if (
+                    torch.min(tree_replaced["pos"][:, 2], 0).values
+                    < torch.max(data["pos"][idx_stuff][:, 2], 0).values
+                ):
+                    dataInsert["pos"][:, 2] = dataInsert["pos"][:, 2] - (
+                        torch.min(dataInsert["pos"][:, 2], 0).values
+                        - torch.min(tree_replaced["pos"][:, 2], 0).values
+                    )
                 else:
-                    dataInsert['pos'][:,2] = dataInsert['pos'][:,2] - (torch.min(dataInsert['pos'][:,2], 0).values-torch.max(data['pos'][idx_stuff][:,2], 0).values)
-                #dataInsert['y'] = dataInsert['y'] - tree_replaced['y'].mean()
-                #dataInsert['z'] = dataInsert['z'] - tree_replaced['z'].mean()
-                #dataMix = torch.cat((data1remain, dataInsert), 0)
-                if dataInsert['instance_labels'][0] in datatreemix['instance_labels']:
-                    dataInsert['instance_labels'] = torch.full(dataInsert['instance_labels'].shape, max_instance_id+1) 
-                    max_instance_id = max_instance_id+1
+                    dataInsert["pos"][:, 2] = dataInsert["pos"][:, 2] - (
+                        torch.min(dataInsert["pos"][:, 2], 0).values
+                        - torch.max(data["pos"][idx_stuff][:, 2], 0).values
+                    )
+                # dataInsert['y'] = dataInsert['y'] - tree_replaced['y'].mean()
+                # dataInsert['z'] = dataInsert['z'] - tree_replaced['z'].mean()
+                # dataMix = torch.cat((data1remain, dataInsert), 0)
+                if dataInsert["instance_labels"][0] in datatreemix["instance_labels"]:
+                    dataInsert["instance_labels"] = torch.full(
+                        dataInsert["instance_labels"].shape, max_instance_id + 1
+                    )
+                    max_instance_id = max_instance_id + 1
                 datacopy = data1remain.to_dict()
                 datatreemix = Data.from_dict(datacopy)
-                #check the overlap of the new insert tree:
-                overlap_ratio = calculate_overlap(dataInsert['pos'], data1remain['pos'], 0.3)
-                if overlap_ratio<0.1:
+                # check the overlap of the new insert tree:
+                overlap_ratio = calculate_overlap(
+                    dataInsert["pos"], data1remain["pos"], 0.3
+                )
+                if overlap_ratio < 0.1:
                     for key in data1remain.keys:
-                        if key == 'grid_size' or key == 'forest_name':
+                        if key == "grid_size" or key == "forest_name":
                             continue
-                        datatreemix[key] = torch.cat((data1remain[key], dataInsert[key]), 0)
+                        datatreemix[key] = torch.cat(
+                            (data1remain[key], dataInsert[key]), 0
+                        )
                 else:
                     datatreemix = data1remain
-        datatreemix['forest_name2'] = data2['forest_name']
-        _, datatreemix['instance_labels'] = torch.unique(datatreemix['instance_labels'],return_inverse=True)
-            
+        datatreemix["forest_name2"] = data2["forest_name"]
+        _, datatreemix["instance_labels"] = torch.unique(
+            datatreemix["instance_labels"], return_inverse=True
+        )
+
         return datatreemix
 
     def __repr__(self):

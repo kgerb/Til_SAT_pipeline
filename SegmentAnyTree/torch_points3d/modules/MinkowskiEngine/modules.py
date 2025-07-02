@@ -2,8 +2,6 @@ import torch.nn as nn
 import MinkowskiEngine as ME
 from .common import ConvType, NormType
 
-from torch_points3d.utils.config import is_list
-
 
 class BasicBlock(nn.Module):
     """This module implements a basic residual convolution block using MinkowskiEngine
@@ -24,16 +22,35 @@ class BasicBlock(nn.Module):
 
     EXPANSION = 1
 
-    def __init__(self, inplanes, planes, stride=1, dilation=1, downsample=None, bn_momentum=0.1, dimension=-1):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        bn_momentum=0.1,
+        dimension=-1,
+    ):
         super(BasicBlock, self).__init__()
         assert dimension > 0
 
         self.conv1 = ME.MinkowskiConvolution(
-            inplanes, planes, kernel_size=3, stride=stride, dilation=dilation, dimension=dimension
+            inplanes,
+            planes,
+            kernel_size=3,
+            stride=stride,
+            dilation=dilation,
+            dimension=dimension,
         )
         self.norm1 = ME.MinkowskiBatchNorm(planes, momentum=bn_momentum)
         self.conv2 = ME.MinkowskiConvolution(
-            planes, planes, kernel_size=3, stride=1, dilation=dilation, dimension=dimension
+            planes,
+            planes,
+            kernel_size=3,
+            stride=1,
+            dilation=dilation,
+            dimension=dimension,
         )
         self.norm2 = ME.MinkowskiBatchNorm(planes, momentum=bn_momentum)
         self.relu = ME.MinkowskiReLU(inplace=True)
@@ -52,7 +69,7 @@ class BasicBlock(nn.Module):
         if self.downsample is not None:
             residual = self.downsample(x)
 
-        out =  out + residual
+        out = out + residual
         out = self.relu(out)
 
         return out
@@ -61,20 +78,40 @@ class BasicBlock(nn.Module):
 class Bottleneck(nn.Module):
     EXPANSION = 4
 
-    def __init__(self, inplanes, planes, stride=1, dilation=1, downsample=None, bn_momentum=0.1, dimension=-1):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        bn_momentum=0.1,
+        dimension=-1,
+    ):
         super(Bottleneck, self).__init__()
         assert dimension > 0
 
-        self.conv1 = ME.MinkowskiConvolution(inplanes, planes, kernel_size=1, dimension=dimension)
+        self.conv1 = ME.MinkowskiConvolution(
+            inplanes, planes, kernel_size=1, dimension=dimension
+        )
         self.norm1 = ME.MinkowskiBatchNorm(planes, momentum=bn_momentum)
 
         self.conv2 = ME.MinkowskiConvolution(
-            planes, planes, kernel_size=3, stride=stride, dilation=dilation, dimension=dimension
+            planes,
+            planes,
+            kernel_size=3,
+            stride=stride,
+            dilation=dilation,
+            dimension=dimension,
         )
         self.norm2 = ME.MinkowskiBatchNorm(planes, momentum=bn_momentum)
 
-        self.conv3 = ME.MinkowskiConvolution(planes, planes * self.EXPANSION, kernel_size=1, dimension=dimension)
-        self.norm3 = ME.MinkowskiBatchNorm(planes * self.EXPANSION, momentum=bn_momentum)
+        self.conv3 = ME.MinkowskiConvolution(
+            planes, planes * self.EXPANSION, kernel_size=1, dimension=dimension
+        )
+        self.norm3 = ME.MinkowskiBatchNorm(
+            planes * self.EXPANSION, momentum=bn_momentum
+        )
 
         self.relu = ME.MinkowskiReLU(inplace=True)
         self.downsample = downsample
@@ -122,26 +159,35 @@ class BaseResBlock(nn.Module):
         activation=ME.MinkowskiReLU,
         bn_momentum=0.1,
         dimension=-1,
-        **kwargs
+        **kwargs,
     ):
-
         super(BaseResBlock, self).__init__()
         assert dimension > 0
 
         modules = []
 
-        convolutions_dim = [[feat_in, feat_mid], [feat_mid, feat_mid], [feat_mid, feat_out]]
+        convolutions_dim = [
+            [feat_in, feat_mid],
+            [feat_mid, feat_mid],
+            [feat_mid, feat_out],
+        ]
 
         kernel_sizes = self.create_arguments_list(kernel_sizes, kernel_size)
         strides = self.create_arguments_list(strides, stride)
         dilations = self.create_arguments_list(dilations, dilation)
         has_biases = self.create_arguments_list(has_biases, bias)
-        kernel_generators = self.create_arguments_list(kernel_generators, kernel_generator)
+        kernel_generators = self.create_arguments_list(
+            kernel_generators, kernel_generator
+        )
 
         for conv_dim, kernel_size, stride, dilation, has_bias, kernel_generator in zip(
-            convolutions_dim, kernel_sizes, strides, dilations, has_biases, kernel_generators
+            convolutions_dim,
+            kernel_sizes,
+            strides,
+            dilations,
+            has_biases,
+            kernel_generators,
         ):
-
             modules.append(
                 ME.MinkowskiConvolution(
                     conv_dim[0],
@@ -188,9 +234,8 @@ class ResnetBlockDown(BaseResBlock):
         bn_momentum=0.1,
         dimension=-1,
         down_stride=2,
-        **kwargs
+        **kwargs,
     ):
-
         super(ResnetBlockDown, self).__init__(
             down_conv_nn[0],
             down_conv_nn[1],
@@ -209,13 +254,16 @@ class ResnetBlockDown(BaseResBlock):
 
         self.downsample = nn.Sequential(
             ME.MinkowskiConvolution(
-                down_conv_nn[0], down_conv_nn[2], kernel_size=2, stride=down_stride, dimension=dimension
+                down_conv_nn[0],
+                down_conv_nn[2],
+                kernel_size=2,
+                stride=down_stride,
+                dimension=dimension,
             ),
             ME.MinkowskiBatchNorm(down_conv_nn[2]),
         )
 
     def forward(self, x):
-
         residual, x = super().forward(x)
 
         return self.downsample(residual) + x
@@ -237,9 +285,8 @@ class ResnetBlockUp(BaseResBlock):
         dimension=-1,
         up_stride=2,
         skip=True,
-        **kwargs
+        **kwargs,
     ):
-
         self.skip = skip
 
         super(ResnetBlockUp, self).__init__(
@@ -259,7 +306,11 @@ class ResnetBlockUp(BaseResBlock):
         )
 
         self.upsample = ME.MinkowskiConvolutionTranspose(
-            up_conv_nn[0], up_conv_nn[2], kernel_size=2, stride=up_stride, dimension=dimension
+            up_conv_nn[0],
+            up_conv_nn[2],
+            kernel_size=2,
+            stride=up_stride,
+            dimension=dimension,
         )
 
     def forward(self, x, x_skip):
@@ -294,10 +345,24 @@ class SELayer(nn.Module):
 
 class SEBasicBlock(BasicBlock):
     def __init__(
-        self, inplanes, planes, stride=1, dilation=1, downsample=None, conv_type=ConvType.HYPERCUBE, reduction=16, D=-1
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        conv_type=ConvType.HYPERCUBE,
+        reduction=16,
+        D=-1,
     ):
         super(SEBasicBlock, self).__init__(
-            inplanes, planes, stride=stride, dilation=dilation, downsample=downsample, conv_type=conv_type, D=D
+            inplanes,
+            planes,
+            stride=stride,
+            dilation=dilation,
+            downsample=downsample,
+            conv_type=conv_type,
+            D=D,
         )
         self.se = SELayer(planes, reduction=reduction, D=D)
 
@@ -315,7 +380,7 @@ class SEBasicBlock(BasicBlock):
         if self.downsample is not None:
             residual = self.downsample(x)
 
-        out =  out + residual
+        out = out + residual
         out = self.relu(out)
 
         return out
@@ -335,10 +400,24 @@ class SEBasicBlockIBN(SEBasicBlock):
 
 class SEBottleneck(Bottleneck):
     def __init__(
-        self, inplanes, planes, stride=1, dilation=1, downsample=None, conv_type=ConvType.HYPERCUBE, D=3, reduction=16
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        conv_type=ConvType.HYPERCUBE,
+        D=3,
+        reduction=16,
     ):
         super(SEBottleneck, self).__init__(
-            inplanes, planes, stride=stride, dilation=dilation, downsample=downsample, conv_type=conv_type, D=D
+            inplanes,
+            planes,
+            stride=stride,
+            dilation=dilation,
+            downsample=downsample,
+            conv_type=conv_type,
+            D=D,
         )
         self.se = SELayer(planes * self.expansion, reduction=reduction, D=D)
 
@@ -360,7 +439,7 @@ class SEBottleneck(Bottleneck):
         if self.downsample is not None:
             residual = self.downsample(x)
 
-        out =  out + residual
+        out = out + residual
         out = self.relu(out)
 
         return out

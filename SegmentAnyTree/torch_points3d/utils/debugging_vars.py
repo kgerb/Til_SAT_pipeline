@@ -45,4 +45,6 @@ class DistributionNeighbour(object):
             self._histogram[num_valid] += 1
 
     def __repr__(self):
-        return "{}(radius={}, bins={})".format(self.__class__.__name__, self._radius, self._bins)
+        return "{}(radius={}, bins={})".format(
+            self.__class__.__name__, self._radius, self._bins
+        )

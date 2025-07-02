@@ -18,7 +18,9 @@ class Convolution(MessagePassing):
 
     """
 
-    def __init__(self, local_nn, activation=ReLU(), global_nn=None, aggr="max", **kwargs):
+    def __init__(
+        self, local_nn, activation=ReLU(), global_nn=None, aggr="max", **kwargs
+    ):
         super(Convolution, self).__init__(aggr=aggr)
         self.local_nn = MLP(local_nn)
         self.activation = activation
@@ -28,14 +30,21 @@ class Convolution(MessagePassing):
         return self.propagate(edge_index, x=x, pos=pos)
 
     def message(self, pos_i, pos_j, x_j):
-
         if x_j is None:
             x_j = pos_j
 
         vij = pos_i - pos_j
         dij = torch.norm(vij, dim=1).unsqueeze(1)
 
-        hij = torch.cat([dij, vij, pos_i, pos_j,], dim=1)
+        hij = torch.cat(
+            [
+                dij,
+                vij,
+                pos_i,
+                pos_j,
+            ],
+            dim=1,
+        )
 
         M_hij = self.local_nn(hij)
 
@@ -51,8 +60,12 @@ class Convolution(MessagePassing):
 
 
 class RSConvDown(BaseConvolutionDown):
-    def __init__(self, ratio=None, radius=None, local_nn=None, down_conv_nn=None, *args, **kwargs):
-        super(RSConvDown, self).__init__(FPSSampler(ratio), RadiusNeighbourFinder(radius), *args, **kwargs)
+    def __init__(
+        self, ratio=None, radius=None, local_nn=None, down_conv_nn=None, *args, **kwargs
+    ):
+        super(RSConvDown, self).__init__(
+            FPSSampler(ratio), RadiusNeighbourFinder(radius), *args, **kwargs
+        )
 
         self._conv = Convolution(local_nn=local_nn, global_nn=down_conv_nn)
 

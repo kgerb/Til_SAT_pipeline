@@ -1,30 +1,29 @@
 import laspy
 import argparse
-import pandas as pd
 import numpy as np
 from sklearn.neighbors import KDTree
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
-class AttachLabelsToLasFileGt2Pred():
-    def __init__(
-        self, 
-        gt_las_file_path, 
-        target_las_file_path, 
-        update_las_file_path,
-        gt_label_name='gt_label',
-        target_label_name='target_label',
-        verbose=False
-         ):
 
+class AttachLabelsToLasFileGt2Pred:
+    def __init__(
+        self,
+        gt_las_file_path,
+        target_las_file_path,
+        update_las_file_path,
+        gt_label_name="gt_label",
+        target_label_name="target_label",
+        verbose=False,
+    ):
         self.gt_las_file_path = gt_las_file_path
         self.target_las_file_path = target_las_file_path
         self.update_las_file_path = update_las_file_path
         self.gt_label_name = gt_label_name
         self.target_label_name = target_label_name
         self.verbose = verbose
-     
 
     def attach_labels(self):
         # read las file
@@ -37,7 +36,7 @@ class AttachLabelsToLasFileGt2Pred():
         gt_label = gt_las[self.gt_label_name]
 
         # create a tree from target las file
-        tree = KDTree(gt, leaf_size=50, metric='euclidean')
+        tree = KDTree(gt, leaf_size=50, metric="euclidean")
         # find the nearest neighbor for each point in target las file
         ind = tree.query(target, k=1, return_distance=False)
 
@@ -50,17 +49,21 @@ class AttachLabelsToLasFileGt2Pred():
         header = target_las.header
 
         # create a new las file with the same header as target las file
-        new_header = laspy.LasHeader(point_format=point_format.id, version=header.version)
+        new_header = laspy.LasHeader(
+            point_format=point_format.id, version=header.version
+        )
         # add gt_label and target_label extra dimensions to the new las file
-         # get extra dimensions from target las file
+        # get extra dimensions from target las file
         target_extra_dimensions = list(target_las.point_format.extra_dimension_names)
 
         # add extra dimensions to new las file
         for item in target_extra_dimensions:
             new_header.add_extra_dim(laspy.ExtraBytesParams(name=item, type=np.int32))
-            
+
         # add gt_label and target_label extra dimensions to the new las file
-        new_header.add_extra_dim(laspy.ExtraBytesParams(name=self.target_label_name, type=np.int32))
+        new_header.add_extra_dim(
+            laspy.ExtraBytesParams(name=self.target_label_name, type=np.int32)
+        )
 
         new_las = laspy.LasData(new_header)
 
@@ -74,38 +77,39 @@ class AttachLabelsToLasFileGt2Pred():
             new_las[item] = target_las[item]
 
         new_las[self.target_label_name] = target_labels.T[0]
-        
+
         # write the new las file
         new_las.write(self.update_las_file_path)
 
     def main(self):
-        self.attach_labels(
-        )
+        self.attach_labels()
         if self.verbose:
             # write a report using logging
-            logging.info('gt_las_file_path: {}'.format(self.gt_las_file_path))
-            logging.info('target_las_file_path: {}'.format(self.target_las_file_path))
-            logging.info('update_las_file_path: {}'.format(self.update_las_file_path))
-            logging.info('gt_label_name: {}'.format(self.gt_label_name))
-            logging.info('target_label_name: {}'.format(self.target_label_name))
+            logging.info("gt_las_file_path: {}".format(self.gt_las_file_path))
+            logging.info("target_las_file_path: {}".format(self.target_las_file_path))
+            logging.info("update_las_file_path: {}".format(self.update_las_file_path))
+            logging.info("gt_label_name: {}".format(self.gt_label_name))
+            logging.info("target_label_name: {}".format(self.target_label_name))
 
             # print the size of the las files
             gt_las = laspy.read(self.gt_las_file_path)
             target_las = laspy.read(self.target_las_file_path)
             gt_las_size = gt_las.x.shape[0]
             target_las_size = target_las.x.shape[0]
-            logging.info('gt_las_size: {}'.format(gt_las_size))
-            logging.info('target_las_size: {}'.format(target_las_size))
+            logging.info("gt_las_size: {}".format(gt_las_size))
+            logging.info("target_las_size: {}".format(target_las_size))
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Attach labels to las file')
-    parser.add_argument('--gt_las_file_path', type=str, required=True)
-    parser.add_argument('--target_las_file_path', type=str, required=True)
-    parser.add_argument('--update_las_file_path', type=str, required=True)
-    parser.add_argument('--gt_label_name', type=str, default='gt_label')
-    parser.add_argument('--target_label_name', type=str, default='target_label')
-    parser.add_argument('--verbose', action='store_true', help="Print information about the process")
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("Attach labels to las file")
+    parser.add_argument("--gt_las_file_path", type=str, required=True)
+    parser.add_argument("--target_las_file_path", type=str, required=True)
+    parser.add_argument("--update_las_file_path", type=str, required=True)
+    parser.add_argument("--gt_label_name", type=str, default="gt_label")
+    parser.add_argument("--target_label_name", type=str, default="target_label")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print information about the process"
+    )
     args = parser.parse_args()
 
     # create an instance of AttachLabelsToLasFile class
@@ -115,9 +119,8 @@ if __name__ == '__main__':
         update_las_file_path=args.update_las_file_path,
         gt_label_name=args.gt_label_name,
         target_label_name=args.target_label_name,
-        verbose=args.verbose
-
-        )
+        verbose=args.verbose,
+    )
 
     # call main function
     attach_labels_to_las_file.main()

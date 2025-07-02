@@ -1,6 +1,5 @@
 from typing import List, Optional
 import torch
-import copy
 import torch_geometric
 from torch_geometric.data import Data
 from torch_geometric.data import Batch
@@ -16,7 +15,9 @@ class MultiScaleData(Data):
         upsample: Optional[List[Data]] = None,
         **kwargs,
     ):
-        super().__init__(x=x, y=y, pos=pos, multiscale=multiscale, upsample=upsample, **kwargs)
+        super().__init__(
+            x=x, y=y, pos=pos, multiscale=multiscale, upsample=upsample, **kwargs
+        )
 
     def apply(self, func, *keys):
         r"""Applies the function :obj:`func` to all tensor and Data attributes
@@ -35,14 +36,16 @@ class MultiScaleData(Data):
 
     @property
     def num_scales(self):
-        """ Number of scales in the multiscale array
-        """
-        return len(self.multiscale) if hasattr(self, "multiscale") and self.multiscale else 0
+        """Number of scales in the multiscale array"""
+        return (
+            len(self.multiscale)
+            if hasattr(self, "multiscale") and self.multiscale
+            else 0
+        )
 
     @property
     def num_upsample(self):
-        """ Number of upsample operations
-        """
+        """Number of upsample operations"""
         return len(self.upsample) if hasattr(self, "upsample") and self.upsample else 0
 
     @classmethod
@@ -65,10 +68,14 @@ class MultiScaleBatch(MultiScaleData):
             assert isinstance(data, MultiScaleData)
         num_scales = data_list[0].num_scales
         for data_entry in data_list:
-            assert data_entry.num_scales == num_scales, "All data objects should contain the same number of scales"
+            assert data_entry.num_scales == num_scales, (
+                "All data objects should contain the same number of scales"
+            )
         num_upsample = data_list[0].num_upsample
         for data_entry in data_list:
-            assert data_entry.num_upsample == num_upsample, "All data objects should contain the same number of scales"
+            assert data_entry.num_upsample == num_upsample, (
+                "All data objects should contain the same number of scales"
+            )
 
         # Build multiscale batches
         multiscale = []
@@ -102,7 +109,7 @@ class MultiScaleBatch(MultiScaleData):
 
 
 def from_data_list_token(data_list, follow_batch=[]):
-    """ This is pretty a copy paste of the from data list of pytorch geometric
+    """This is pretty a copy paste of the from data list of pytorch geometric
     batch object with the difference that indexes that are negative are not incremented
     """
 
@@ -151,13 +158,13 @@ def from_data_list_token(data_list, follow_batch=[]):
     for key in batch.keys:
         item = batch[key][0]
         if torch.is_tensor(item):
-            batch[key] = torch.cat(
-                batch[key], dim=data_list[0].__cat_dim__(key, item))
+            batch[key] = torch.cat(batch[key], dim=data_list[0].__cat_dim__(key, item))
         elif isinstance(item, int) or isinstance(item, float):
             batch[key] = torch.tensor(batch[key])
         else:
             raise ValueError(
-                "Unsupported attribute type {} : {}".format(type(item), item))
+                "Unsupported attribute type {} : {}".format(type(item), item)
+            )
 
     if torch_geometric.is_debug_enabled():
         batch.debug()

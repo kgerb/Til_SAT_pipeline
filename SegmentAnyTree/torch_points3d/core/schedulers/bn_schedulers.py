@@ -33,9 +33,18 @@ def set_bn_momentum_default(bn_momentum):
 
 
 class BNMomentumScheduler(object):
-    def __init__(self, model, bn_lambda, update_scheduler_on, last_epoch=-1, setter=set_bn_momentum_default):
+    def __init__(
+        self,
+        model,
+        bn_lambda,
+        update_scheduler_on,
+        last_epoch=-1,
+        setter=set_bn_momentum_default,
+    ):
         if not isinstance(model, nn.Module):
-            raise RuntimeError("Class '{}' is not a PyTorch nn Module".format(type(model).__name__))
+            raise RuntimeError(
+                "Class '{}' is not a PyTorch nn Module".format(type(model).__name__)
+            )
 
         self.model = model
         self.setter = setter
@@ -59,7 +68,6 @@ class BNMomentumScheduler(object):
         self._scheduler_opt = scheduler_opt
 
     def step(self, epoch=None):
-
         if epoch is None:
             epoch = self.last_epoch + 1
 
@@ -90,7 +98,7 @@ def instantiate_bn_scheduler(model, bn_scheduler_opt):
     """Return a batch normalization scheduler
     Parameters:
         model          -- the nn network
-        bn_scheduler_opt (option class) -- dict containing all the params to build the scheduler　
+        bn_scheduler_opt (option class) -- dict containing all the params to build the scheduler
                               opt.bn_policy is the name of learning rate policy: lambda_rule | step | plateau | cosine
                               opt.params contains the scheduler_params to construct the scheduler
     See https://pytorch.org/docs/stable/optim.html for more details.
@@ -100,12 +108,15 @@ def instantiate_bn_scheduler(model, bn_scheduler_opt):
     if bn_scheduler_opt.get("bn_policy") == "step_decay":
         bn_lambda = lambda e: max(
             bn_scheduler_params.bn_momentum
-            * bn_scheduler_params.bn_decay ** (int(e // bn_scheduler_params.decay_step)),
+            * bn_scheduler_params.bn_decay
+            ** (int(e // bn_scheduler_params.decay_step)),
             bn_scheduler_params.bn_clip,
         )
 
     else:
-        return NotImplementedError("bn_policy [%s] is not implemented", bn_scheduler_opt.bn_policy)
+        return NotImplementedError(
+            "bn_policy [%s] is not implemented", bn_scheduler_opt.bn_policy
+        )
 
     bn_scheduler = BNMomentumScheduler(model, bn_lambda, update_scheduler_on)
     bn_scheduler.scheduler_opt = OmegaConf.to_container(bn_scheduler_opt)

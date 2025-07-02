@@ -6,7 +6,6 @@ import os
 import os.path as osp
 from omegaconf import OmegaConf
 import sys
-import matplotlib.pyplot as plt
 
 # Import building function for model and dataset
 DIR = os.path.dirname(os.path.realpath(__file__))
@@ -37,7 +36,9 @@ def read_gt_log(path):
     return list_pair, list_mat
 
 
-def compute_matches(feature_source, feature_target, kp_source, kp_target, ratio=False, sym=False):
+def compute_matches(
+    feature_source, feature_target, kp_source, kp_target, ratio=False, sym=False
+):
     """
     compute matches between features
     """
@@ -49,7 +50,9 @@ def compute_matches(feature_source, feature_target, kp_source, kp_target, ratio=
 
     # symetric test
     if sym:
-        indmatch = np.where(nn_ind_source.T[0][nn_ind_target.T[0]] == np.arange(len(feature_source)))[0]
+        indmatch = np.where(
+            nn_ind_source.T[0][nn_ind_target.T[0]] == np.arange(len(feature_source))
+        )[0]
     else:
         indmatch = np.arange(len(feature_target))
     new_kp_source = np.copy(kp_source[nn_ind_target.T[0][indmatch]])
@@ -97,7 +100,10 @@ def pair_evaluation(path_descr_source, path_descr_target, gt_trans, list_tau, re
         feat_t = feat_t[data_target["keypoints"]]
 
     kp_source, kp_target = compute_matches(
-        feat_s, feat_t, data_source["pcd"][data_source["keypoints"]], data_target["pcd"][data_target["keypoints"]],
+        feat_s,
+        feat_t,
+        data_source["pcd"][data_source["keypoints"]],
+        data_target["pcd"][data_target["keypoints"]],
     )
 
     dist = compute_dists(kp_source, kp_target, gt_trans)
@@ -120,7 +126,9 @@ def pair_evaluation(path_descr_source, path_descr_target, gt_trans, list_tau, re
     return dico
 
 
-def compute_recall_scene(scene_name, list_pair, list_trans, list_tau1, list_tau2, res_path):
+def compute_recall_scene(
+    scene_name, list_pair, list_trans, list_tau1, list_tau2, res_path
+):
     """
     evaluate the recall for each scene
     """
@@ -131,18 +139,21 @@ def compute_recall_scene(scene_name, list_pair, list_trans, list_tau1, list_tau2
         list_frac_correct.append(dico["frac_correct"])
         list_dico.append(dico)
 
-    list_recall = compute_mean_correct_matches(np.asarray(list_frac_correct), list_tau2, is_leq=False)
+    list_recall = compute_mean_correct_matches(
+        np.asarray(list_frac_correct), list_tau2, is_leq=False
+    )
     print("Save the matches")
     df_matches = pd.DataFrame(list_dico)
     df_matches.to_csv(osp.join(res_path, "matches.csv"))
-    dico = dict(scene_name=scene_name, list_tau2=list(list_tau2), list_recall=list(list_recall))
+    dico = dict(
+        scene_name=scene_name, list_tau2=list(list_tau2), list_recall=list(list_recall)
+    )
     df_res = pd.DataFrame([dico])
     df_res.to_csv(osp.join(res_path, "res_recall.csv"))
     return dico
 
 
 def evaluate(path_raw_fragment, path_results, list_tau1, list_tau2):
-
     """
     launch the evaluation procedure
     """
@@ -158,15 +169,22 @@ def evaluate(path_raw_fragment, path_results, list_tau1, list_tau2):
             name0 = "{}_{}_desc.npz".format("cloud_bin", pair[0])
             name1 = "{}_{}_desc.npz".format("cloud_bin", pair[1])
             list_pair.append(
-                [osp.join(path_results, "features", scene, name0), osp.join(path_results, "features", scene, name1)]
+                [
+                    osp.join(path_results, "features", scene, name0),
+                    osp.join(path_results, "features", scene, name1),
+                ]
             )
         res_path = osp.join(path_results, "matches", scene)
         if not osp.exists(res_path):
             os.makedirs(res_path, exist_ok=True)
-        dico = compute_recall_scene(scene, list_pair, list_mat, list_tau1, list_tau2, res_path)
+        dico = compute_recall_scene(
+            scene, list_pair, list_mat, list_tau1, list_tau2, res_path
+        )
         list_total_res.append(dico)
     total_recall = np.mean([d["list_recall"] for d in list_total_res], axis=0)
-    list_total_res.append(dict(scene_name="total", list_tau2=list_tau2, list_recall=list(total_recall)))
+    list_total_res.append(
+        dict(scene_name="total", list_tau2=list_tau2, list_recall=list(total_recall))
+    )
     df = pd.DataFrame(list_total_res)
     df.to_csv(osp.join(path_results, "matches", "total_res.csv"))
 

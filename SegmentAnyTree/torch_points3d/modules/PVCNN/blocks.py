@@ -21,7 +21,9 @@ class BasicDeconvolutionBlock(nn.Module):
     def __init__(self, inc, outc, ks=3, stride=1):
         super().__init__()
         self.net = nn.Sequential(
-            spnn.Conv3d(inc, outc, kernel_size=ks, stride=stride, transpose=True), spnn.BatchNorm(outc), spnn.ReLU(True)
+            spnn.Conv3d(inc, outc, kernel_size=ks, stride=stride, transpose=True),
+            spnn.BatchNorm(outc),
+            spnn.ReLU(True),
         )
 
     def forward(self, x):
@@ -42,7 +44,10 @@ class ResidualBlock(nn.Module):
         self.downsample = (
             nn.Sequential()
             if (inc == outc and stride == 1)
-            else nn.Sequential(spnn.Conv3d(inc, outc, kernel_size=1, dilation=1, stride=stride), spnn.BatchNorm(outc))
+            else nn.Sequential(
+                spnn.Conv3d(inc, outc, kernel_size=1, dilation=1, stride=stride),
+                spnn.BatchNorm(outc),
+            )
         )
 
         self.relu = spnn.ReLU(True)

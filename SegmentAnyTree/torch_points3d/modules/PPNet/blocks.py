@@ -15,40 +15,45 @@ class SimpleBlock(BaseModule):
     simple layer with PosPool
     we can perform a stride version (just change the query and the neighbors)
     """
+
     CONV_TYPE = ConvolutionFormat.PARTIAL_DENSE.value
     DENSITY_PARAMETER = 2.5
 
     def __init__(
-            self,
-            down_conv_nn=None,
-            grid_size=None,
-            prev_grid_size=None,
-            sigma=1.0,
-            max_num_neighbors=16,
-            position_embedding='xyz',
-            reduction='avg',
-            output_conv=False,
-            activation=torch.nn.LeakyReLU(negative_slope=0.2),
-            bn_momentum=0.01,
-            bn=FastBatchNorm1d,
-            **kwargs,
+        self,
+        down_conv_nn=None,
+        grid_size=None,
+        prev_grid_size=None,
+        sigma=1.0,
+        max_num_neighbors=16,
+        position_embedding="xyz",
+        reduction="avg",
+        output_conv=False,
+        activation=torch.nn.LeakyReLU(negative_slope=0.2),
+        bn_momentum=0.01,
+        bn=FastBatchNorm1d,
+        **kwargs,
     ):
         super(SimpleBlock, self).__init__()
         assert len(down_conv_nn) == 2
         num_inputs, num_outputs = down_conv_nn
 
         search_radius = self.DENSITY_PARAMETER * sigma * prev_grid_size
-        self.neighbour_finder = RadiusNeighbourFinder(search_radius, max_num_neighbors, conv_type=self.CONV_TYPE)
+        self.neighbour_finder = RadiusNeighbourFinder(
+            search_radius, max_num_neighbors, conv_type=self.CONV_TYPE
+        )
 
-        self.pospool = PosPoolLayer(num_inputs,
-                                    num_outputs,
-                                    search_radius,
-                                    position_embedding=position_embedding,
-                                    reduction=reduction,
-                                    output_conv=output_conv,
-                                    activation=activation,
-                                    bn_momentum=bn_momentum,
-                                    bn=bn)
+        self.pospool = PosPoolLayer(
+            num_inputs,
+            num_outputs,
+            search_radius,
+            position_embedding=position_embedding,
+            reduction=reduction,
+            output_conv=output_conv,
+            activation=activation,
+            bn_momentum=bn_momentum,
+            bn=bn,
+        )
 
         is_strided = prev_grid_size != grid_size
         if is_strided:
@@ -73,7 +78,9 @@ class SimpleBlock(BaseModule):
             q_pos = query_data.pos
         else:
             q_pos, q_batch = query_data.pos, query_data.batch
-            idx_neighboors = self.neighbour_finder(data.pos, q_pos, batch_x=data.batch, batch_y=q_batch)
+            idx_neighboors = self.neighbour_finder(
+                data.pos, q_pos, batch_x=data.batch, batch_y=q_batch
+            )
             query_data.idx_neighboors = idx_neighboors
 
         x = self.pospool(q_pos, data.pos, idx_neighboors, data.x)
@@ -83,7 +90,9 @@ class SimpleBlock(BaseModule):
         return query_data
 
     def extra_repr(self):
-        return "Nb parameters: {}; {}; {}".format(self.nb_params, self.sampler, self.neighbour_finder)
+        return "Nb parameters: {}; {}; {}".format(
+            self.nb_params, self.sampler, self.neighbour_finder
+        )
 
 
 class SimpleInputBlock(BaseModule):
@@ -91,23 +100,24 @@ class SimpleInputBlock(BaseModule):
     a 1x1 conv and a simple layer with PosPool for input data
     we can perform a stride version (just change the query and the neighbors)
     """
+
     CONV_TYPE = ConvolutionFormat.PARTIAL_DENSE.value
     DENSITY_PARAMETER = 2.5
 
     def __init__(
-            self,
-            down_conv_nn=None,
-            grid_size=None,
-            prev_grid_size=None,
-            sigma=1.0,
-            max_num_neighbors=16,
-            position_embedding='xyz',
-            reduction='avg',
-            output_conv=False,
-            activation=torch.nn.LeakyReLU(negative_slope=0.2),
-            bn_momentum=0.01,
-            bn=FastBatchNorm1d,
-            **kwargs,
+        self,
+        down_conv_nn=None,
+        grid_size=None,
+        prev_grid_size=None,
+        sigma=1.0,
+        max_num_neighbors=16,
+        position_embedding="xyz",
+        reduction="avg",
+        output_conv=False,
+        activation=torch.nn.LeakyReLU(negative_slope=0.2),
+        bn_momentum=0.01,
+        bn=FastBatchNorm1d,
+        **kwargs,
     ):
         super(SimpleInputBlock, self).__init__()
         assert len(down_conv_nn) == 3
@@ -115,23 +125,31 @@ class SimpleInputBlock(BaseModule):
 
         if bn:
             self.unary_1 = torch.nn.Sequential(
-                Lin(num_inputs, d_2, bias=False), bn(d_2, momentum=bn_momentum), activation
+                Lin(num_inputs, d_2, bias=False),
+                bn(d_2, momentum=bn_momentum),
+                activation,
             )
         else:
-            self.unary_1 = torch.nn.Sequential(Lin(num_inputs, d_2, bias=False), activation)
+            self.unary_1 = torch.nn.Sequential(
+                Lin(num_inputs, d_2, bias=False), activation
+            )
 
         search_radius = self.DENSITY_PARAMETER * sigma * prev_grid_size
-        self.neighbour_finder = RadiusNeighbourFinder(search_radius, max_num_neighbors, conv_type=self.CONV_TYPE)
+        self.neighbour_finder = RadiusNeighbourFinder(
+            search_radius, max_num_neighbors, conv_type=self.CONV_TYPE
+        )
 
-        self.pospool = PosPoolLayer(d_2,
-                                    num_outputs,
-                                    search_radius,
-                                    position_embedding=position_embedding,
-                                    reduction=reduction,
-                                    output_conv=output_conv,
-                                    activation=activation,
-                                    bn_momentum=bn_momentum,
-                                    bn=bn)
+        self.pospool = PosPoolLayer(
+            d_2,
+            num_outputs,
+            search_radius,
+            position_embedding=position_embedding,
+            reduction=reduction,
+            output_conv=output_conv,
+            activation=activation,
+            bn_momentum=bn_momentum,
+            bn=bn,
+        )
 
         is_strided = prev_grid_size != grid_size
         if is_strided:
@@ -156,7 +174,9 @@ class SimpleInputBlock(BaseModule):
             q_pos = query_data.pos
         else:
             q_pos, q_batch = query_data.pos, query_data.batch
-            idx_neighboors = self.neighbour_finder(data.pos, q_pos, batch_x=data.batch, batch_y=q_batch)
+            idx_neighboors = self.neighbour_finder(
+                data.pos, q_pos, batch_x=data.batch, batch_y=q_batch
+            )
             query_data.idx_neighboors = idx_neighboors
 
         x = self.unary_1(data.x)
@@ -167,11 +187,13 @@ class SimpleInputBlock(BaseModule):
         return query_data
 
     def extra_repr(self):
-        return "Nb parameters: {}; {}; {}".format(self.nb_params, self.sampler, self.neighbour_finder)
+        return "Nb parameters: {}; {}; {}".format(
+            self.nb_params, self.sampler, self.neighbour_finder
+        )
 
 
 class ResnetBBlock(BaseModule):
-    """ ResNet bottleneck block with PosPool
+    """ResNet bottleneck block with PosPool
     Arguments:
         down_conv_nn (len of 2) : sizes of input, output
         grid_size : size of the grid
@@ -191,21 +213,21 @@ class ResnetBBlock(BaseModule):
     CONV_TYPE = ConvolutionFormat.PARTIAL_DENSE.value
 
     def __init__(
-            self,
-            down_conv_nn=None,
-            grid_size=None,
-            prev_grid_size=None,
-            sigma=1,
-            max_num_neighbors=16,
-            position_embedding='xyz',
-            reduction='avg',
-            output_conv=False,
-            activation=torch.nn.LeakyReLU(negative_slope=0.2),
-            has_bottleneck=True,
-            bottleneck_ratio=2,
-            bn_momentum=0.01,
-            bn=FastBatchNorm1d,
-            **kwargs,
+        self,
+        down_conv_nn=None,
+        grid_size=None,
+        prev_grid_size=None,
+        sigma=1,
+        max_num_neighbors=16,
+        position_embedding="xyz",
+        reduction="avg",
+        output_conv=False,
+        activation=torch.nn.LeakyReLU(negative_slope=0.2),
+        has_bottleneck=True,
+        bottleneck_ratio=2,
+        bn_momentum=0.01,
+        bn=FastBatchNorm1d,
+        **kwargs,
     ):
         super(ResnetBBlock, self).__init__()
         assert len(down_conv_nn) == 2, "down_conv_nn should be of size 2"
@@ -232,25 +254,32 @@ class ResnetBBlock(BaseModule):
             output_conv=output_conv,
             activation=activation,
             bn_momentum=bn_momentum,
-            bn=bn)
+            bn=bn,
+        )
 
         if self.has_bottleneck:
             if bn:
                 self.unary_1 = torch.nn.Sequential(
-                    Lin(num_inputs, d_2, bias=False), bn(d_2, momentum=bn_momentum), activation
+                    Lin(num_inputs, d_2, bias=False),
+                    bn(d_2, momentum=bn_momentum),
+                    activation,
                 )
                 self.unary_2 = torch.nn.Sequential(
-                    Lin(d_2, num_outputs, bias=False), bn(num_outputs, momentum=bn_momentum)
+                    Lin(d_2, num_outputs, bias=False),
+                    bn(num_outputs, momentum=bn_momentum),
                 )
             else:
-                self.unary_1 = torch.nn.Sequential(Lin(num_inputs, d_2, bias=False), activation)
+                self.unary_1 = torch.nn.Sequential(
+                    Lin(num_inputs, d_2, bias=False), activation
+                )
                 self.unary_2 = torch.nn.Sequential(Lin(d_2, num_outputs, bias=False))
 
         # Shortcut
         if num_inputs != num_outputs:
             if bn:
                 self.shortcut_op = torch.nn.Sequential(
-                    Lin(num_inputs, num_outputs, bias=False), bn(num_outputs, momentum=bn_momentum)
+                    Lin(num_inputs, num_outputs, bias=False),
+                    bn(num_outputs, momentum=bn_momentum),
                 )
             else:
                 self.shortcut_op = Lin(num_inputs, num_outputs, bias=False)
@@ -262,7 +291,7 @@ class ResnetBBlock(BaseModule):
 
     def forward(self, data, precomputed=None, **kwargs):
         """
-            data: x, pos, batch_idx and idx_neighbour when the neighboors of each point in pos have already been computed
+        data: x, pos, batch_idx and idx_neighbour when the neighboors of each point in pos have already been computed
         """
         # Main branch
         output = data.clone()
@@ -276,12 +305,14 @@ class ResnetBBlock(BaseModule):
         # Shortcut
         if self.is_strided:
             idx_neighboors = output.idx_neighboors
-            shortcut_x = torch.cat([shortcut_x, torch.zeros_like(shortcut_x[:1, :])], axis=0)  # Shadow feature
+            shortcut_x = torch.cat(
+                [shortcut_x, torch.zeros_like(shortcut_x[:1, :])], axis=0
+            )  # Shadow feature
             neighborhood_features = shortcut_x[idx_neighboors]
             shortcut_x = torch.max(neighborhood_features, dim=1, keepdim=False)[0]
 
         shortcut = self.shortcut_op(shortcut_x)
-        output.x = output.x +shortcut
+        output.x = output.x + shortcut
         output.x = self.activation(output.x)
         return output
 
@@ -298,7 +329,7 @@ class ResnetBBlock(BaseModule):
 
 
 class PPStageBlock(BaseModule):
-    """ PPNet Stage block (usually strided + non strided)
+    """PPNet Stage block (usually strided + non strided)
 
     Arguments: Accepted kwargs
         block_names: Name of the blocks to be used as part of this dual block
@@ -316,19 +347,19 @@ class PPStageBlock(BaseModule):
     """
 
     def __init__(
-            self,
-            block_names=None,
-            down_conv_nn=None,
-            grid_size=None,
-            prev_grid_size=None,
-            has_bottleneck=None,
-            bottleneck_ratio=None,
-            max_num_neighbors=None,
-            position_embedding=None,
-            reduction=None,
-            output_conv=None,
-            bn_momentum=None,
-            **kwargs,
+        self,
+        block_names=None,
+        down_conv_nn=None,
+        grid_size=None,
+        prev_grid_size=None,
+        has_bottleneck=None,
+        bottleneck_ratio=None,
+        max_num_neighbors=None,
+        position_embedding=None,
+        reduction=None,
+        output_conv=None,
+        bn_momentum=None,
+        **kwargs,
     ):
         super(PPStageBlock, self).__init__()
 

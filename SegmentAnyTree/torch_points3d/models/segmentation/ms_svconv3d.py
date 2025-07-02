@@ -2,12 +2,10 @@ import logging
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-import torchsparse as TS
 
 
 from torch_points3d.models.base_model import BaseModel
 from torch_points3d.datasets.segmentation import IGNORE_LABEL
-from torch_points3d.applications.sparseconv3d import SparseConv3d
 
 from torch_points3d.core.common_modules import FastBatchNorm1d, Seq
 from torch_points3d.models.registration.ms_svconv3d import UnetMSparseConv3d
@@ -41,8 +39,12 @@ class MS_SparseConvModel(APIModel):
                 self.FC_layer.append(
                     nn.Sequential(
                         *[
-                            nn.Linear(last_mlp_opt.nn[i - 1], last_mlp_opt.nn[i], bias=False),
-                            FastBatchNorm1d(last_mlp_opt.nn[i], momentum=last_mlp_opt.bn_momentum),
+                            nn.Linear(
+                                last_mlp_opt.nn[i - 1], last_mlp_opt.nn[i], bias=False
+                            ),
+                            FastBatchNorm1d(
+                                last_mlp_opt.nn[i], momentum=last_mlp_opt.bn_momentum
+                            ),
                             nn.LeakyReLU(0.2),
                         ]
                     )
@@ -55,7 +57,6 @@ class MS_SparseConvModel(APIModel):
         self.loss_names = ["loss_seg"]
 
     def apply_nn(self, input):
-
         outputs = []
         for i in range(len(self.grid_size)):
             self.unet.set_grid_size(self.grid_size[i])
@@ -65,7 +66,9 @@ class MS_SparseConvModel(APIModel):
         x = torch.cat([o.x for o in outputs], 1)
         out_feat = self.FC_layer(x)
         if self.normalize_feature:
-            out_feat = out_feat / (torch.norm(out_feat, p=2, dim=1, keepdim=True) + 1e-20)
+            out_feat = out_feat / (
+                torch.norm(out_feat, p=2, dim=1, keepdim=True) + 1e-20
+            )
         out_feat = self.head(out_feat)
         return out_feat, outputs
 
@@ -73,7 +76,9 @@ class MS_SparseConvModel(APIModel):
         logits, _ = self.apply_nn(self.input)
         self.output = F.log_softmax(logits, dim=-1)
         if self.labels is not None:
-            self.loss_seg = F.nll_loss(self.output, self.labels, ignore_index=IGNORE_LABEL)
+            self.loss_seg = F.nll_loss(
+                self.output, self.labels, ignore_index=IGNORE_LABEL
+            )
 
     def backward(self):
         self.loss_seg.backward()

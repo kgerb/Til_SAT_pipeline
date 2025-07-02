@@ -11,7 +11,6 @@ import logging
 from omegaconf import OmegaConf
 import os
 import sys
-import pandas as pd
 import time
 
 
@@ -19,24 +18,18 @@ DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT = os.path.join(DIR, "..", "..")
 sys.path.insert(0, ROOT)
 
-from torch_points3d.models.model_factory import instantiate_model
-from torch_points3d.datasets.dataset_factory import instantiate_dataset, get_dataset_class
+from torch_points3d.datasets.dataset_factory import (
+    instantiate_dataset,
+)
 from torch_points3d.models.base_model import BaseModel
 from torch_points3d.datasets.base_dataset import BaseDataset
 
 from torch_points3d.utils.registration import (
     estimate_transfo,
     teaser_pp_registration,
-    fast_global_registration,
     get_matches,
 )
-from torch_points3d.metrics.registration_metrics import (
-    compute_hit_ratio,
-    compute_transfo_error,
-    compute_scaled_registration_error,
-)
 
-from torch_points3d.metrics.colored_tqdm import Coloredtqdm as Ctq
 from torch_points3d.metrics.model_checkpoint import ModelCheckpoint
 
 log = logging.getLogger(__name__)
@@ -100,7 +93,9 @@ def match_visualizer(pcd1, keypoints1, pcd2, keypoints2, inliers, t=2, radius=0.
         raise Exception("number of points is different")
     for i in range(len(kp1)):
         assert inliers is not None
-        col = inliers[i] * np.asarray([0, 1, 0]) + (1 - inliers[i]) * np.asarray([1, 0, 0])
+        col = inliers[i] * np.asarray([0, 1, 0]) + (1 - inliers[i]) * np.asarray(
+            [1, 0, 0]
+        )
         colors.append(list(col))
         p1 = kp1[i]
         p2 = kp2[i]
@@ -117,7 +112,11 @@ def match_visualizer(pcd1, keypoints1, pcd2, keypoints2, inliers, t=2, radius=0.
 def run(model: BaseModel, dataset: BaseDataset, device, cfg):
     print(time.strftime("%Y%m%d-%H%M%S"))
     dataset.create_dataloaders(
-        model, 1, False, cfg.training.num_workers, False,
+        model,
+        1,
+        False,
+        cfg.training.num_workers,
+        False,
     )
     loader = dataset.test_dataset[0]
 
@@ -140,7 +139,9 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
         model.set_input(data, device)
         model.forward()
 
-        name_scene, name_pair_source, name_pair_target = dataset.test_dataset[0].get_name(ind)
+        name_scene, name_pair_source, name_pair_target = dataset.test_dataset[
+            0
+        ].get_name(ind)
         print(name_scene, name_pair_source, name_pair_target)
         input, input_target = model.get_input()
         xyz, xyz_target = input.pos, input_target.pos
@@ -152,8 +153,12 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
 
         rand = torch.randperm(len(feat))[: cfg.data.num_points]
         rand_target = torch.randperm(len(feat_target))[: cfg.data.num_points]
-        T_gt = estimate_transfo(xyz[matches_gt[:, 0]].clone(), xyz_target[matches_gt[:, 1]].clone())
-        matches_pred = get_matches(feat[rand], feat_target[rand_target], sym=cfg.data.sym)
+        T_gt = estimate_transfo(
+            xyz[matches_gt[:, 0]].clone(), xyz_target[matches_gt[:, 1]].clone()
+        )
+        matches_pred = get_matches(
+            feat[rand], feat_target[rand_target], sym=cfg.data.sym
+        )
         # For color
         inliers = (
             torch.norm(
@@ -166,7 +171,9 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
         )
         # compute transformation
         T_teaser = teaser_pp_registration(
-            xyz[rand][matches_pred[:, 0]], xyz_target[rand_target][matches_pred[:, 1]], noise_bound=cfg.data.tau_1
+            xyz[rand][matches_pred[:, 0]],
+            xyz_target[rand_target][matches_pred[:, 1]],
+            noise_bound=cfg.data.tau_1,
         )
         pcd_source = torch2o3d(input, [1, 0.7, 0.1])
 
@@ -180,7 +187,15 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
         kp_s = torch2o3d(input, ind=rand[matches_pred[:, 0]][rand_ind])
         kp_s.transform(T_gt.cpu().numpy())
         kp_t = torch2o3d(input_target, ind=rand_target[matches_pred[:, 1]][rand_ind])
-        match_visualizer(pcd_source, kp_s, pcd_target, kp_t, inliers[rand_ind].cpu().numpy(), radius=r, t=t)
+        match_visualizer(
+            pcd_source,
+            kp_s,
+            pcd_target,
+            kp_t,
+            inliers[rand_ind].cpu().numpy(),
+            radius=r,
+            t=t,
+        )
 
 
 @hydra.main(config_path="../../conf/config.yaml", strict=False)
@@ -188,14 +203,21 @@ def main(cfg):
     OmegaConf.set_struct(cfg, False)
 
     # Get device
-    device = torch.device("cuda" if (torch.cuda.is_available() and cfg.training.cuda) else "cpu")
+    device = torch.device(
+        "cuda" if (torch.cuda.is_available() and cfg.training.cuda) else "cpu"
+    )
     log.info("DEVICE : {}".format(device))
 
     # Enable CUDNN BACKEND
     torch.backends.cudnn.enabled = cfg.training.enable_cudnn
 
     # Checkpoint
-    checkpoint = ModelCheckpoint(cfg.training.checkpoint_dir, cfg.model_name, cfg.training.weight_name, strict=True)
+    checkpoint = ModelCheckpoint(
+        cfg.training.checkpoint_dir,
+        cfg.model_name,
+        cfg.training.weight_name,
+        strict=True,
+    )
 
     # Setup the dataset config
     # Generic config
@@ -203,7 +225,10 @@ def main(cfg):
     dataset = instantiate_dataset(cfg.data)
     model = checkpoint.create_model(dataset, weight_name=cfg.training.weight_name)
     log.info(model)
-    log.info("Model size = %i", sum(param.numel() for param in model.parameters() if param.requires_grad))
+    log.info(
+        "Model size = %i",
+        sum(param.numel() for param in model.parameters() if param.requires_grad),
+    )
 
     log.info(dataset)
 

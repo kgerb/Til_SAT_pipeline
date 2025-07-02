@@ -1,18 +1,18 @@
 import numpy as np
 import torch
-import random
 
 from torch_points3d.datasets.base_dataset import BaseDataset, save_used_properties
-from torch_points3d.datasets.segmentation.treeins import TreeinsSphere, TreeinsCylinder, INV_OBJECT_LABEL
-import torch_points3d.core.data_transform as cT
+from torch_points3d.datasets.segmentation.treeins import (
+    TreeinsSphere,
+    TreeinsCylinder,
+    INV_OBJECT_LABEL,
+)
+
 # from torch_points3d.metrics.panoptic_tracker import PanopticTracker
-from torch_points3d.metrics.panoptic_tracker_npm3d import MyPanopticTracker
 from torch_points3d.metrics.panoptic_tracker_pointgroup_treeins import PanopticTracker
 from torch_points3d.datasets.panoptic.utils import set_extra_labels
 from plyfile import PlyData, PlyElement
-import os
 from scipy import stats
-from torch_points3d.models.panoptic.ply import read_ply, write_ply
 
 # @Treeins: almost all code copied from torch_points3d/datasets/panoptic/npm3d.py, for changes see @Treeins
 
@@ -32,11 +32,13 @@ OBJECT_COLOR = np.asarray(
 )
 
 VALID_CLASS_IDS = [0, 1]
-SemIDforInstance = np.array([
-                                1])  # only class tree/1 is is a semantic class with instances, namely tree instances. In contrast, semantic class non-tree is a stuff class.
+SemIDforInstance = np.array(
+    [1]
+)  # only class tree/1 is is a semantic class with instances, namely tree instances. In contrast, semantic class non-tree is a stuff class.
 
 
 ################################### UTILS #######################################
+
 
 def to_ply(pos, label, file):
     assert len(label.shape) == 1
@@ -44,7 +46,15 @@ def to_ply(pos, label, file):
     pos = np.asarray(pos)
     colors = OBJECT_COLOR[np.asarray(label)]
     ply_array = np.ones(
-        pos.shape[0], dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ("red", "u1"), ("green", "u1"), ("blue", "u1")]
+        pos.shape[0],
+        dtype=[
+            ("x", "f4"),
+            ("y", "f4"),
+            ("z", "f4"),
+            ("red", "u1"),
+            ("green", "u1"),
+            ("blue", "u1"),
+        ],
     )
     ply_array["x"] = pos[:, 0]
     ply_array["y"] = pos[:, 1]
@@ -52,9 +62,9 @@ def to_ply(pos, label, file):
     ply_array["red"] = colors[:, 0]
     ply_array["green"] = colors[:, 1]
     ply_array["blue"] = colors[:, 2]
-    el = PlyElement.describe(ply_array, 'vertex')
+    el = PlyElement.describe(ply_array, "vertex")
     PlyData([el], text=True).write(file)
-    print('out')
+    print("out")
 
 
 def to_eval_ply(pos, pre_label, gt, file):
@@ -64,14 +74,21 @@ def to_eval_ply(pos, pre_label, gt, file):
     assert pos.shape[0] == gt.shape[0]
     pos = np.asarray(pos)
     ply_array = np.ones(
-        pos.shape[0], dtype=[("x", "f4"), ("y", "f4"), ("z", "f4"), ("preds", "int16"), ("gt", "int16")]
+        pos.shape[0],
+        dtype=[
+            ("x", "f4"),
+            ("y", "f4"),
+            ("z", "f4"),
+            ("preds", "int16"),
+            ("gt", "int16"),
+        ],
     )
     ply_array["x"] = pos[:, 0]
     ply_array["y"] = pos[:, 1]
     ply_array["z"] = pos[:, 2]
     ply_array["preds"] = np.asarray(pre_label)
     ply_array["gt"] = np.asarray(gt)
-    el = PlyElement.describe(ply_array, 'vertex')
+    el = PlyElement.describe(ply_array, "vertex")
     PlyData([el], text=True).write(file)
 
 
@@ -95,12 +112,14 @@ def to_ins_ply(pos, label, file):
     # ply_array["green"] = colors[:, 1]
     # ply_array["blue"] = colors[:, 2]
     ply_array["preds"] = np.asarray(label)
-    el = PlyElement.describe(ply_array, 'vertex')
+    el = PlyElement.describe(ply_array, "vertex")
     PlyData([el], text=True).write(file)
 
 
 # @Treeins: added parameter output_file_name because we now save several final evaluation files because we have several test files
-def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_file_name):
+def final_eval(
+    pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_file_name
+):
     NUM_CLASSES = 3  # @Treeins: classes unclassified, non-tree and tree
     NUM_CLASSES_count = 2  # @Treeins: 2 classes without unclassified
     # class index for instance segmenatation
@@ -109,10 +128,10 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     stuff_classcount = [1]  # @Treeins
     # class index for semantic segmenatation
     sem_classcount = [1, 2]  # @Treeins
-    #class index for semantic classes with gt points
+    # class index for semantic classes with gt points
     sem_classcount_have = []
-    stuff_classes = [1,2]
-    thing_classes = [3,4,5]
+    stuff_classes = [1, 2]
+    thing_classes = [3, 4, 5]
 
     # log directory
     # file_path = '/scratch2/torch-points3d/outputs/2021-10-20/06-19-43/eval/2021-10-26_14-27-55/'
@@ -122,10 +141,12 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     # pred_ins_label_filename = file_path+'Instance_Offset_results_forEval.ply'
 
     # Initialize...
-    LOG_FOUT = open(output_file_name + '.txt', 'a')  # @Treeins: save evaluation file with name output_file_name
+    LOG_FOUT = open(
+        output_file_name + ".txt", "a"
+    )  # @Treeins: save evaluation file with name output_file_name
 
     def log_string(out_str):
-        LOG_FOUT.write(out_str + '\n')
+        LOG_FOUT.write(out_str + "\n")
         LOG_FOUT.flush()
         print(out_str)
 
@@ -166,7 +187,9 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     gt_sem_complete = np.asarray(gt_sem).reshape(-1).astype(np.int64) + 1
 
     # idxc = (gt_sem_complete!=0) | (pred_sem_complete!=0)
-    idxc = ((gt_sem_complete != 0) & (gt_sem_complete != 1)) | ((pred_sem_complete != 0) & (pred_sem_complete != 1))
+    idxc = ((gt_sem_complete != 0) & (gt_sem_complete != 1)) | (
+        (pred_sem_complete != 0) & (pred_sem_complete != 1)
+    )
     pred_ins = pred_ins_complete[idxc]
     pred_ins_embed = pred_ins_complete_embed[idxc]
     gt_ins = gt_ins_complete[idxc]
@@ -184,16 +207,27 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
         # semantic results
     iou_list = []
     for i in range(NUM_CLASSES):
-        iou = true_positive_classes[i] / float(gt_classes[i] + positive_classes[i] - true_positive_classes[i])
+        iou = true_positive_classes[i] / float(
+            gt_classes[i] + positive_classes[i] - true_positive_classes[i]
+        )
         iou_list.append(iou)
 
-    log_string('Semantic Segmentation oAcc: {}'.format(sum(true_positive_classes) / float(sum(positive_classes))))
+    log_string(
+        "Semantic Segmentation oAcc: {}".format(
+            sum(true_positive_classes) / float(sum(positive_classes))
+        )
+    )
     # log_string('Semantic Segmentation Acc: {}'.format(true_positive_classes / gt_classes))
-    log_string('Semantic Segmentation mAcc: {}'.format(
-        np.mean(true_positive_classes[sem_classcount] / gt_classes[sem_classcount])))
-    log_string('Semantic Segmentation IoU: {}'.format(iou_list))
-    log_string('Semantic Segmentation mIoU: {}'.format(1. * sum(iou_list) / NUM_CLASSES_count))
-    log_string('  ')
+    log_string(
+        "Semantic Segmentation mAcc: {}".format(
+            np.mean(true_positive_classes[sem_classcount] / gt_classes[sem_classcount])
+        )
+    )
+    log_string("Semantic Segmentation IoU: {}".format(iou_list))
+    log_string(
+        "Semantic Segmentation mIoU: {}".format(1.0 * sum(iou_list) / NUM_CLASSES_count)
+    )
+    log_string("  ")
 
     # instance
     un = np.unique(pred_ins)
@@ -201,7 +235,7 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     for ig, g in enumerate(un):  # each object in prediction
         if g == -1:
             continue
-        tmp = (pred_ins == g)
+        tmp = pred_ins == g
         sem_seg_i = int(stats.mode(pred_sem[tmp])[0])
         pts_in_pred[sem_seg_i] += [tmp]
 
@@ -210,7 +244,7 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     for ig, g in enumerate(un):  # each object in prediction
         if g == -1:
             continue
-        tmp = (pred_ins_embed == g)
+        tmp = pred_ins_embed == g
         sem_seg_i = int(stats.mode(pred_sem[tmp])[0])
         pts_in_pred_embed[sem_seg_i] += [tmp]
 
@@ -219,7 +253,7 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     for ig, g in enumerate(un):
         if g == -1:
             continue
-        tmp = (gt_ins == g)
+        tmp = gt_ins == g
         sem_seg_i = int(stats.mode(gt_sem[tmp])[0])
         pts_in_gt[sem_seg_i] += [tmp]
 
@@ -230,12 +264,12 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
         mean_weighted_cov = 0
         num_gt_point = 0
         for ig, ins_gt in enumerate(pts_in_gt[i_sem]):
-            ovmax = 0.
+            ovmax = 0.0
             num_ins_gt_point = np.sum(ins_gt)
             num_gt_point += num_ins_gt_point
             for ip, ins_pred in enumerate(pts_in_pred[i_sem]):
-                union = (ins_pred | ins_gt)
-                intersect = (ins_pred & ins_gt)
+                union = ins_pred | ins_gt
+                intersect = ins_pred & ins_gt
                 iou = float(np.sum(intersect)) / np.sum(union)
 
                 if iou > ovmax:
@@ -258,17 +292,17 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     for i_sem in range(NUM_CLASSES):
         IoU_Tp_per = 0
         IoU_Mc_per = 0
-        tp = [0.] * len(pts_in_pred[i_sem])
-        fp = [0.] * len(pts_in_pred[i_sem])
+        tp = [0.0] * len(pts_in_pred[i_sem])
+        fp = [0.0] * len(pts_in_pred[i_sem])
         gtflag = np.zeros(len(pts_in_gt[i_sem]))
         total_gt_ins[i_sem] += len(pts_in_gt[i_sem])
 
         for ip, ins_pred in enumerate(pts_in_pred[i_sem]):
-            ovmax = -1.
+            ovmax = -1.0
 
             for ig, ins_gt in enumerate(pts_in_gt[i_sem]):
-                union = (ins_pred | ins_gt)
-                intersect = (ins_pred & ins_gt)
+                union = ins_pred | ins_gt
+                intersect = ins_pred & ins_gt
                 iou = float(np.sum(intersect)) / np.sum(union)
 
                 if iou > ovmax:
@@ -296,12 +330,12 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
         mean_weighted_cov = 0
         num_gt_point = 0
         for ig, ins_gt in enumerate(pts_in_gt[i_sem]):
-            ovmax = 0.
+            ovmax = 0.0
             num_ins_gt_point = np.sum(ins_gt)
             num_gt_point += num_ins_gt_point
             for ip, ins_pred in enumerate(pts_in_pred_embed[i_sem]):
-                union = (ins_pred | ins_gt)
-                intersect = (ins_pred & ins_gt)
+                union = ins_pred | ins_gt
+                intersect = ins_pred & ins_gt
                 iou = float(np.sum(intersect)) / np.sum(union)
 
                 if iou > ovmax:
@@ -322,17 +356,17 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
     for i_sem in range(NUM_CLASSES):
         IoU_Tp_per = 0
         IoU_Mc_per = 0
-        tp = [0.] * len(pts_in_pred_embed[i_sem])
-        fp = [0.] * len(pts_in_pred_embed[i_sem])
+        tp = [0.0] * len(pts_in_pred_embed[i_sem])
+        fp = [0.0] * len(pts_in_pred_embed[i_sem])
         gtflag = np.zeros(len(pts_in_gt[i_sem]))
         # total_gt_ins[i_sem] += len(pts_in_gt[i_sem])
 
         for ip, ins_pred in enumerate(pts_in_pred_embed[i_sem]):
-            ovmax = -1.
+            ovmax = -1.0
 
             for ig, ins_gt in enumerate(pts_in_gt[i_sem]):
-                union = (ins_pred | ins_gt)
-                intersect = (ins_pred & ins_gt)
+                union = ins_pred | ins_gt
+                intersect = ins_pred & ins_gt
                 iou = float(np.sum(intersect)) / np.sum(union)
 
                 if iou > ovmax:
@@ -450,79 +484,165 @@ def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_fi
         PQ_embed[i_sem] = SQ_embed[i_sem] * RQ_embed[i_sem]
         PQStar_embed[i_sem] = iou_list[i_sem]
 
-    F1_score = (2 * np.mean(precision[ins_classcount]) * np.mean(recall[ins_classcount])) / (
-                np.mean(precision[ins_classcount]) + np.mean(recall[ins_classcount]))
-    F1_score_embed = (2 * np.mean(precision_embed[ins_classcount]) * np.mean(recall_embed[ins_classcount])) / (
-                np.mean(precision_embed[ins_classcount]) + np.mean(recall_embed[ins_classcount]))
+    F1_score = (
+        2 * np.mean(precision[ins_classcount]) * np.mean(recall[ins_classcount])
+    ) / (np.mean(precision[ins_classcount]) + np.mean(recall[ins_classcount]))
+    F1_score_embed = (
+        2
+        * np.mean(precision_embed[ins_classcount])
+        * np.mean(recall_embed[ins_classcount])
+    ) / (
+        np.mean(precision_embed[ins_classcount]) + np.mean(recall_embed[ins_classcount])
+    )
     # instance results
-    log_string('Instance Segmentation for Offset:')
-    log_string('Instance Segmentation MUCov: {}'.format(MUCov[ins_classcount]))
-    log_string('Instance Segmentation mMUCov: {}'.format(np.mean(MUCov[ins_classcount])))
-    log_string('Instance Segmentation MWCov: {}'.format(MWCov[ins_classcount]))
-    log_string('Instance Segmentation mMWCov: {}'.format(np.mean(MWCov[ins_classcount])))
-    log_string('Instance Segmentation Precision: {}'.format(precision[ins_classcount]))
-    log_string('Instance Segmentation mPrecision: {}'.format(np.mean(precision[ins_classcount])))
-    log_string('Instance Segmentation Recall: {}'.format(recall[ins_classcount]))
-    log_string('Instance Segmentation mRecall: {}'.format(np.mean(recall[ins_classcount])))
-    log_string('Instance Segmentation F1 score: {}'.format(F1_score))
-    log_string('Instance Segmentation RQ: {}'.format(RQ[sem_classcount]))
-    log_string('Instance Segmentation meanRQ: {}'.format(np.mean(RQ[sem_classcount])))
-    log_string('Instance Segmentation SQ: {}'.format(SQ[sem_classcount]))
-    log_string('Instance Segmentation meanSQ: {}'.format(np.mean(SQ[sem_classcount])))
-    log_string('Instance Segmentation PQ: {}'.format(PQ[sem_classcount]))
-    log_string('Instance Segmentation meanPQ: {}'.format(np.mean(PQ[sem_classcount])))
-    log_string('Instance Segmentation PQ star: {}'.format(PQStar[sem_classcount]))
-    log_string('Instance Segmentation mean PQ star: {}'.format(np.mean(PQStar[sem_classcount])))
-    log_string('Instance Segmentation RQ (things): {}'.format(RQ[ins_classcount]))
-    log_string('Instance Segmentation meanRQ (things): {}'.format(np.mean(RQ[ins_classcount])))
-    log_string('Instance Segmentation SQ (things): {}'.format(SQ[ins_classcount]))
-    log_string('Instance Segmentation meanSQ (things): {}'.format(np.mean(SQ[ins_classcount])))
-    log_string('Instance Segmentation PQ (things): {}'.format(PQ[ins_classcount]))
-    log_string('Instance Segmentation meanPQ (things): {}'.format(np.mean(PQ[ins_classcount])))
-    log_string('Instance Segmentation RQ (stuff): {}'.format(RQ[stuff_classcount]))
-    log_string('Instance Segmentation meanRQ (stuff): {}'.format(np.mean(RQ[stuff_classcount])))
-    log_string('Instance Segmentation SQ (stuff): {}'.format(SQ[stuff_classcount]))
-    log_string('Instance Segmentation meanSQ (stuff): {}'.format(np.mean(SQ[stuff_classcount])))
-    log_string('Instance Segmentation PQ (stuff): {}'.format(PQ[stuff_classcount]))
-    log_string('Instance Segmentation meanPQ (stuff): {}'.format(np.mean(PQ[stuff_classcount])))
-    log_string('  ')
-    log_string('Instance Segmentation for Embeddings:')
-    log_string('Instance Segmentation MUCov: {}'.format(MUCov_embed[ins_classcount]))
-    log_string('Instance Segmentation mMUCov: {}'.format(np.mean(MUCov_embed[ins_classcount])))
-    log_string('Instance Segmentation MWCov: {}'.format(MWCov_embed[ins_classcount]))
-    log_string('Instance Segmentation mMWCov: {}'.format(np.mean(MWCov_embed[ins_classcount])))
-    log_string('Instance Segmentation Precision: {}'.format(precision_embed[ins_classcount]))
-    log_string('Instance Segmentation mPrecision: {}'.format(np.mean(precision_embed[ins_classcount])))
-    log_string('Instance Segmentation Recall: {}'.format(recall_embed[ins_classcount]))
-    log_string('Instance Segmentation mRecall: {}'.format(np.mean(recall_embed[ins_classcount])))
-    log_string('Instance Segmentation F1 score: {}'.format(F1_score_embed))
-    log_string('Instance Segmentation RQ: {}'.format(RQ_embed[sem_classcount]))
-    log_string('Instance Segmentation meanRQ: {}'.format(np.mean(RQ_embed[sem_classcount])))
-    log_string('Instance Segmentation SQ: {}'.format(SQ_embed[sem_classcount]))
-    log_string('Instance Segmentation meanSQ: {}'.format(np.mean(SQ_embed[sem_classcount])))
-    log_string('Instance Segmentation PQ: {}'.format(PQ_embed[sem_classcount]))
-    log_string('Instance Segmentation meanPQ: {}'.format(np.mean(PQ_embed[sem_classcount])))
-    log_string('Instance Segmentation PQ star: {}'.format(PQStar_embed[sem_classcount]))
-    log_string('Instance Segmentation mean PQ star: {}'.format(np.mean(PQStar_embed[sem_classcount])))
-    log_string('Instance Segmentation RQ (things): {}'.format(RQ_embed[ins_classcount]))
-    log_string('Instance Segmentation meanRQ (things): {}'.format(np.mean(RQ_embed[ins_classcount])))
-    log_string('Instance Segmentation SQ (things): {}'.format(SQ_embed[ins_classcount]))
-    log_string('Instance Segmentation meanSQ (things): {}'.format(np.mean(SQ_embed[ins_classcount])))
-    log_string('Instance Segmentation PQ (things): {}'.format(PQ_embed[ins_classcount]))
-    log_string('Instance Segmentation meanPQ (things): {}'.format(np.mean(PQ_embed[ins_classcount])))
-    log_string('Instance Segmentation RQ (stuff): {}'.format(RQ_embed[stuff_classcount]))
-    log_string('Instance Segmentation meanRQ (stuff): {}'.format(np.mean(RQ_embed[stuff_classcount])))
-    log_string('Instance Segmentation SQ (stuff): {}'.format(SQ_embed[stuff_classcount]))
-    log_string('Instance Segmentation meanSQ (stuff): {}'.format(np.mean(SQ_embed[stuff_classcount])))
-    log_string('Instance Segmentation PQ (stuff): {}'.format(PQ_embed[stuff_classcount]))
-    log_string('Instance Segmentation meanPQ (stuff): {}'.format(np.mean(PQ_embed[stuff_classcount])))
+    log_string("Instance Segmentation for Offset:")
+    log_string("Instance Segmentation MUCov: {}".format(MUCov[ins_classcount]))
+    log_string(
+        "Instance Segmentation mMUCov: {}".format(np.mean(MUCov[ins_classcount]))
+    )
+    log_string("Instance Segmentation MWCov: {}".format(MWCov[ins_classcount]))
+    log_string(
+        "Instance Segmentation mMWCov: {}".format(np.mean(MWCov[ins_classcount]))
+    )
+    log_string("Instance Segmentation Precision: {}".format(precision[ins_classcount]))
+    log_string(
+        "Instance Segmentation mPrecision: {}".format(
+            np.mean(precision[ins_classcount])
+        )
+    )
+    log_string("Instance Segmentation Recall: {}".format(recall[ins_classcount]))
+    log_string(
+        "Instance Segmentation mRecall: {}".format(np.mean(recall[ins_classcount]))
+    )
+    log_string("Instance Segmentation F1 score: {}".format(F1_score))
+    log_string("Instance Segmentation RQ: {}".format(RQ[sem_classcount]))
+    log_string("Instance Segmentation meanRQ: {}".format(np.mean(RQ[sem_classcount])))
+    log_string("Instance Segmentation SQ: {}".format(SQ[sem_classcount]))
+    log_string("Instance Segmentation meanSQ: {}".format(np.mean(SQ[sem_classcount])))
+    log_string("Instance Segmentation PQ: {}".format(PQ[sem_classcount]))
+    log_string("Instance Segmentation meanPQ: {}".format(np.mean(PQ[sem_classcount])))
+    log_string("Instance Segmentation PQ star: {}".format(PQStar[sem_classcount]))
+    log_string(
+        "Instance Segmentation mean PQ star: {}".format(np.mean(PQStar[sem_classcount]))
+    )
+    log_string("Instance Segmentation RQ (things): {}".format(RQ[ins_classcount]))
+    log_string(
+        "Instance Segmentation meanRQ (things): {}".format(np.mean(RQ[ins_classcount]))
+    )
+    log_string("Instance Segmentation SQ (things): {}".format(SQ[ins_classcount]))
+    log_string(
+        "Instance Segmentation meanSQ (things): {}".format(np.mean(SQ[ins_classcount]))
+    )
+    log_string("Instance Segmentation PQ (things): {}".format(PQ[ins_classcount]))
+    log_string(
+        "Instance Segmentation meanPQ (things): {}".format(np.mean(PQ[ins_classcount]))
+    )
+    log_string("Instance Segmentation RQ (stuff): {}".format(RQ[stuff_classcount]))
+    log_string(
+        "Instance Segmentation meanRQ (stuff): {}".format(np.mean(RQ[stuff_classcount]))
+    )
+    log_string("Instance Segmentation SQ (stuff): {}".format(SQ[stuff_classcount]))
+    log_string(
+        "Instance Segmentation meanSQ (stuff): {}".format(np.mean(SQ[stuff_classcount]))
+    )
+    log_string("Instance Segmentation PQ (stuff): {}".format(PQ[stuff_classcount]))
+    log_string(
+        "Instance Segmentation meanPQ (stuff): {}".format(np.mean(PQ[stuff_classcount]))
+    )
+    log_string("  ")
+    log_string("Instance Segmentation for Embeddings:")
+    log_string("Instance Segmentation MUCov: {}".format(MUCov_embed[ins_classcount]))
+    log_string(
+        "Instance Segmentation mMUCov: {}".format(np.mean(MUCov_embed[ins_classcount]))
+    )
+    log_string("Instance Segmentation MWCov: {}".format(MWCov_embed[ins_classcount]))
+    log_string(
+        "Instance Segmentation mMWCov: {}".format(np.mean(MWCov_embed[ins_classcount]))
+    )
+    log_string(
+        "Instance Segmentation Precision: {}".format(precision_embed[ins_classcount])
+    )
+    log_string(
+        "Instance Segmentation mPrecision: {}".format(
+            np.mean(precision_embed[ins_classcount])
+        )
+    )
+    log_string("Instance Segmentation Recall: {}".format(recall_embed[ins_classcount]))
+    log_string(
+        "Instance Segmentation mRecall: {}".format(
+            np.mean(recall_embed[ins_classcount])
+        )
+    )
+    log_string("Instance Segmentation F1 score: {}".format(F1_score_embed))
+    log_string("Instance Segmentation RQ: {}".format(RQ_embed[sem_classcount]))
+    log_string(
+        "Instance Segmentation meanRQ: {}".format(np.mean(RQ_embed[sem_classcount]))
+    )
+    log_string("Instance Segmentation SQ: {}".format(SQ_embed[sem_classcount]))
+    log_string(
+        "Instance Segmentation meanSQ: {}".format(np.mean(SQ_embed[sem_classcount]))
+    )
+    log_string("Instance Segmentation PQ: {}".format(PQ_embed[sem_classcount]))
+    log_string(
+        "Instance Segmentation meanPQ: {}".format(np.mean(PQ_embed[sem_classcount]))
+    )
+    log_string("Instance Segmentation PQ star: {}".format(PQStar_embed[sem_classcount]))
+    log_string(
+        "Instance Segmentation mean PQ star: {}".format(
+            np.mean(PQStar_embed[sem_classcount])
+        )
+    )
+    log_string("Instance Segmentation RQ (things): {}".format(RQ_embed[ins_classcount]))
+    log_string(
+        "Instance Segmentation meanRQ (things): {}".format(
+            np.mean(RQ_embed[ins_classcount])
+        )
+    )
+    log_string("Instance Segmentation SQ (things): {}".format(SQ_embed[ins_classcount]))
+    log_string(
+        "Instance Segmentation meanSQ (things): {}".format(
+            np.mean(SQ_embed[ins_classcount])
+        )
+    )
+    log_string("Instance Segmentation PQ (things): {}".format(PQ_embed[ins_classcount]))
+    log_string(
+        "Instance Segmentation meanPQ (things): {}".format(
+            np.mean(PQ_embed[ins_classcount])
+        )
+    )
+    log_string(
+        "Instance Segmentation RQ (stuff): {}".format(RQ_embed[stuff_classcount])
+    )
+    log_string(
+        "Instance Segmentation meanRQ (stuff): {}".format(
+            np.mean(RQ_embed[stuff_classcount])
+        )
+    )
+    log_string(
+        "Instance Segmentation SQ (stuff): {}".format(SQ_embed[stuff_classcount])
+    )
+    log_string(
+        "Instance Segmentation meanSQ (stuff): {}".format(
+            np.mean(SQ_embed[stuff_classcount])
+        )
+    )
+    log_string(
+        "Instance Segmentation PQ (stuff): {}".format(PQ_embed[stuff_classcount])
+    )
+    log_string(
+        "Instance Segmentation meanPQ (stuff): {}".format(
+            np.mean(PQ_embed[stuff_classcount])
+        )
+    )
 
 
 class PanopticTreeinsBase:
     INSTANCE_CLASSES = CLASSES_INV.keys()
     NUM_MAX_OBJECTS = 80  # @Treeins: increased int because we had more number of instances in data files from the Treeins data set
 
-    STUFFCLASSES = torch.tensor([i for i in VALID_CLASS_IDS if i not in SemIDforInstance])
+    STUFFCLASSES = torch.tensor(
+        [i for i in VALID_CLASS_IDS if i not in SemIDforInstance]
+    )
     THINGCLASSES = torch.tensor([i for i in VALID_CLASS_IDS if i in SemIDforInstance])
     ID2CLASS = {SemforInsid: i for i, SemforInsid in enumerate(list(SemIDforInstance))}
 
@@ -577,7 +697,7 @@ class PanopticTreeinsCylinder(PanopticTreeinsBase, TreeinsCylinder):
 
 
 class TreeinsFusedDataset(BaseDataset):
-    """ Wrapper around NPM3DSphere that creates train and test datasets.
+    """Wrapper around NPM3DSphere that creates train and test datasets.
 
     Parameters
     ----------
@@ -597,7 +717,11 @@ class TreeinsFusedDataset(BaseDataset):
         super().__init__(dataset_opt)
 
         sampling_format = dataset_opt.get("sampling_format", "sphere")
-        dataset_cls = PanopticTreeinsCylinder if sampling_format == "cylinder" else PanopticTreeinsSphere
+        dataset_cls = (
+            PanopticTreeinsCylinder
+            if sampling_format == "cylinder"
+            else PanopticTreeinsSphere
+        )
 
         # @Treeins: case for training/when running train.py
         if len(self.dataset_opt.fold) == 0 or isinstance(self.dataset_opt.fold[0], int):
@@ -671,8 +795,7 @@ class TreeinsFusedDataset(BaseDataset):
     @property  # type: ignore
     @save_used_properties
     def stuff_classes(self):
-        """ Returns a list of classes that are not instances
-        """
+        """Returns a list of classes that are not instances"""
         # return self.train_dataset.stuff_classes
         if self.train_dataset:
             return self.train_dataset.stuff_classes
@@ -682,8 +805,7 @@ class TreeinsFusedDataset(BaseDataset):
     @property  # type: ignore
     @save_used_properties
     def thing_classes(self):
-        """ Returns a list of classes that are not instances
-        """
+        """Returns a list of classes that are not instances"""
         # return self.train_dataset.thing_classes
         if self.train_dataset:
             return self.train_dataset.thing_classes
@@ -692,7 +814,7 @@ class TreeinsFusedDataset(BaseDataset):
 
     @staticmethod
     def to_ply(pos, label, file):
-        """ Allows to save npm3d predictions to disk using s3dis color scheme
+        """Allows to save npm3d predictions to disk using s3dis color scheme
 
         Parameters
         ----------
@@ -707,7 +829,7 @@ class TreeinsFusedDataset(BaseDataset):
 
     @staticmethod
     def to_eval_ply(pos, pre_label, gt, file):
-        """ Allows to save npm3d predictions to disk for evaluation
+        """Allows to save npm3d predictions to disk for evaluation
 
         Parameters
         ----------
@@ -724,7 +846,7 @@ class TreeinsFusedDataset(BaseDataset):
 
     @staticmethod
     def to_ins_ply(pos, label, file):
-        """ Allows to save npm3d instance predictions to disk using random color
+        """Allows to save npm3d instance predictions to disk using random color
 
         Parameters
         ----------
@@ -738,9 +860,12 @@ class TreeinsFusedDataset(BaseDataset):
         to_ins_ply(pos, label, file)
 
     @staticmethod
-    def final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_file_name):  # @Treeins
-
-        final_eval(pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_file_name)
+    def final_eval(
+        pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_file_name
+    ):  # @Treeins
+        final_eval(
+            pre_sem, pre_ins_embed, pre_ins_offset, gt_sem, gt_ins, output_file_name
+        )
 
     def get_tracker(self, wandb_log: bool, tensorboard_log: bool):
         """Factory method for the tracker
@@ -752,5 +877,7 @@ class TreeinsFusedDataset(BaseDataset):
             [BaseTracker] -- tracker
         """
 
-        return PanopticTracker(self, wandb_log=wandb_log, use_tensorboard=tensorboard_log)
+        return PanopticTracker(
+            self, wandb_log=wandb_log, use_tensorboard=tensorboard_log
+        )
         # return MyPanopticTracker(self, wandb_log=wandb_log, use_tensorboard=tensorboard_log)

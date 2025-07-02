@@ -1,13 +1,11 @@
 import os
 import copy
 import torch
-torch.multiprocessing.set_sharing_strategy('file_system')
-import hydra
+
+torch.multiprocessing.set_sharing_strategy("file_system")
 import time
 import logging
 
-from tqdm.auto import tqdm
-import wandb
 import numpy as np
 import random
 
@@ -87,18 +85,22 @@ class Trainer:
 
         # Create model and datasets
         if not self._checkpoint.is_empty:
-            self._dataset: BaseDataset = instantiate_dataset(self._checkpoint.data_config)
+            self._dataset: BaseDataset = instantiate_dataset(
+                self._checkpoint.data_config
+            )
             self._model: BaseModel = self._checkpoint.create_model(
                 self._dataset, weight_name=self._cfg.training.weight_name
             )
-            #train need
-            #self._model.instantiate_optimizers(self._cfg, "cuda" in device)
+            # train need
+            # self._model.instantiate_optimizers(self._cfg, "cuda" in device)
         else:
             self._dataset: BaseDataset = instantiate_dataset(self._cfg.data)
-            self._model: BaseModel = instantiate_model(copy.deepcopy(self._cfg), self._dataset)
+            self._model: BaseModel = instantiate_model(
+                copy.deepcopy(self._cfg), self._dataset
+            )
             self._model.instantiate_optimizers(self._cfg, "cuda" in device)
             self._model.set_pretrained_weights()
-            #if not self._checkpoint.validate(self._dataset.used_properties):
+            # if not self._checkpoint.validate(self._dataset.used_properties):
             #    log.warning(
             #        "The model will not be able to be used from pretrained weights without the corresponding dataset. Current properties are {}".format(
             #            self._dataset.used_properties
@@ -109,7 +111,14 @@ class Trainer:
         log.info(self._model)
 
         self._model.log_optimizers()
-        log.info("Model size = %i", sum(param.numel() for param in self._model.parameters() if param.requires_grad))
+        log.info(
+            "Model size = %i",
+            sum(
+                param.numel()
+                for param in self._model.parameters()
+                if param.requires_grad
+            ),
+        )
 
         # Set dataloaders
         self._dataset.create_dataloaders(
@@ -122,7 +131,7 @@ class Trainer:
         log.info(self._dataset)
 
         # Verify attributes in dataset
-        #self._model.verify_data(self._dataset.train_dataset[0])
+        # self._model.verify_data(self._dataset.train_dataset[0])
         if self._dataset.train_dataset:
             self._model.verify_data(self._dataset.train_dataset[0])
         else:
@@ -130,17 +139,26 @@ class Trainer:
 
         # Choose selection stage
         selection_stage = getattr(self._cfg, "selection_stage", "")
-        self._checkpoint.selection_stage = self._dataset.resolve_saving_stage(selection_stage)
-        self._tracker: BaseTracker = self._dataset.get_tracker(self.wandb_log, self.tensorboard_log)
+        self._checkpoint.selection_stage = self._dataset.resolve_saving_stage(
+            selection_stage
+        )
+        self._tracker: BaseTracker = self._dataset.get_tracker(
+            self.wandb_log, self.tensorboard_log
+        )
 
         if self.wandb_log:
-            Wandb.launch(self._cfg, not self._cfg.training.wandb.public and self.wandb_log)
+            Wandb.launch(
+                self._cfg, not self._cfg.training.wandb.public and self.wandb_log
+            )
 
         # Run training / evaluation
         self._model = self._model.to(self._device)
         if self.has_visualization:
             self._visualizer = Visualizer(
-                self._cfg.visualization, self._dataset.num_batches, self._dataset.batch_size, os.getcwd()
+                self._cfg.visualization,
+                self._dataset.num_batches,
+                self._dataset.batch_size,
+                os.getcwd(),
             )
 
     def train(self):
@@ -184,14 +202,15 @@ class Trainer:
         self._tracker.finalise(**self.tracker_options)
         if self._is_training:
             metrics = self._tracker.publish(epoch)
-            self._checkpoint.save_best_models_under_current_metrics(self._model, metrics, self._tracker.metric_func)
+            self._checkpoint.save_best_models_under_current_metrics(
+                self._model, metrics, self._tracker.metric_func
+            )
             if self.wandb_log and self._cfg.training.wandb.public:
                 Wandb.add_file(self._checkpoint.checkpoint_path)
             if self._tracker._stage == "train":
                 log.info("Learning rate = %f" % self._model.learning_rate)
 
     def _train_epoch(self, epoch: int):
-
         self._model.train()
         self._tracker.reset("train")
         self._visualizer.reset(epoch, "train")
@@ -203,17 +222,19 @@ class Trainer:
                 t_data = time.time() - iter_data_time
                 iter_start_time = time.time()
                 self._model.set_input(data, self._device)
-                #self._model.optimize_parameters(epoch, self._dataset.batch_size)
+                # self._model.optimize_parameters(epoch, self._dataset.batch_size)
                 self._model.optimize_parameters2(epoch, i, self._dataset.batch_size)
                 if i % 50 == 0:
                     with torch.no_grad():
-                        self._tracker.track(self._model, data=data, **self.tracker_options)
+                        self._tracker.track(
+                            self._model, data=data, **self.tracker_options
+                        )
 
                 tq_train_loader.set_postfix(
                     **self._tracker.get_metrics(),
                     data_loading=float(t_data),
                     iteration=float(time.time() - iter_start_time),
-                    color=COLORS.TRAIN_COLOR
+                    color=COLORS.TRAIN_COLOR,
                 )
 
                 if self._visualizer.is_active:
@@ -246,7 +267,9 @@ class Trainer:
             self._tracker.reset(stage_name)
             if self.has_visualization:
                 self._visualizer.reset(epoch, stage_name)
-            if not self._dataset.has_labels(stage_name) and not self.tracker_options.get(
+            if not self._dataset.has_labels(
+                stage_name
+            ) and not self.tracker_options.get(
                 "make_submission", False
             ):  # No label, no submission -> do nothing
                 log.warning("No forward will be run on dataset %s." % stage_name)
@@ -257,13 +280,23 @@ class Trainer:
                     for data in tq_loader:
                         with torch.no_grad():
                             self._model.set_input(data, self._device)
-                            with torch.cuda.amp.autocast(enabled=self._model.is_mixed_precision()):
-                                self._model.forward(epoch=epoch, is_training = self._is_training)
-                            self._tracker.track(self._model, data=data, **self.tracker_options)
-                        tq_loader.set_postfix(**self._tracker.get_metrics(), color=COLORS.TEST_COLOR)
+                            with torch.cuda.amp.autocast(
+                                enabled=self._model.is_mixed_precision()
+                            ):
+                                self._model.forward(
+                                    epoch=epoch, is_training=self._is_training
+                                )
+                            self._tracker.track(
+                                self._model, data=data, **self.tracker_options
+                            )
+                        tq_loader.set_postfix(
+                            **self._tracker.get_metrics(), color=COLORS.TEST_COLOR
+                        )
 
                         if self.has_visualization and self._visualizer.is_active:
-                            self._visualizer.save_visuals(self._model.get_current_visuals())
+                            self._visualizer.save_visuals(
+                                self._model.get_current_visuals()
+                            )
 
                         if self.early_break:
                             break
@@ -315,7 +348,9 @@ class Trainer:
 
     @property
     def precompute_multi_scale(self):
-        return self._model.conv_type == "PARTIAL_DENSE" and getattr(self._cfg.training, "precompute_multi_scale", False)
+        return self._model.conv_type == "PARTIAL_DENSE" and getattr(
+            self._cfg.training, "precompute_multi_scale", False
+        )
 
     @property
     def wandb_log(self):

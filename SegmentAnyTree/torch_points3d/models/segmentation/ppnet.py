@@ -1,17 +1,13 @@
 from typing import Any
 import logging
-from omegaconf.dictconfig import DictConfig
-from omegaconf.listconfig import ListConfig
 from torch.nn import Sequential, Dropout, Linear
 import torch.nn.functional as F
 from torch import nn
 
-from .base import Segmentation_MP
 from torch_points3d.core.common_modules import FastBatchNorm1d
 from torch_points3d.modules.PPNet import *
 from torch_points3d.core.base_conv.partial_dense import *
 from torch_points3d.core.common_modules import MultiHeadClassifier, Identity
-from torch_points3d.models.base_model import BaseModel
 from torch_points3d.models.base_architectures.unet import UnwrappedUnetBasedModel
 from torch_points3d.datasets.multiscale_data import MultiScaleBatch
 from torch_points3d.datasets.segmentation import IGNORE_LABEL
@@ -32,7 +28,10 @@ class PPNet(UnwrappedUnetBasedModel):
                 )
             self._class_to_seg = dataset.class_to_segments
             self._num_categories = len(self._class_to_seg)
-            log.info("Using category information for the predictions with %i categories", self._num_categories)
+            log.info(
+                "Using category information for the predictions with %i categories",
+                self._num_categories,
+            )
         else:
             self._num_categories = 0
 
@@ -57,7 +56,9 @@ class PPNet(UnwrappedUnetBasedModel):
                     Sequential(
                         *[
                             Linear(in_feat, last_mlp_opt.nn[i], bias=False),
-                            FastBatchNorm1d(last_mlp_opt.nn[i], momentum=last_mlp_opt.bn_momentum),
+                            FastBatchNorm1d(
+                                last_mlp_opt.nn[i], momentum=last_mlp_opt.bn_momentum
+                            ),
                             LeakyReLU(0.2),
                         ]
                     ),
@@ -67,7 +68,9 @@ class PPNet(UnwrappedUnetBasedModel):
             if last_mlp_opt.dropout:
                 self.FC_layer.add_module("Dropout", Dropout(p=last_mlp_opt.dropout))
 
-            self.FC_layer.add_module("Class", Lin(in_feat, self._num_classes, bias=False))
+            self.FC_layer.add_module(
+                "Class", Lin(in_feat, self._num_classes, bias=False)
+            )
             self.FC_layer.add_module("Softmax", nn.LogSoftmax(-1))
         self.loss_names = ["loss_seg"]
 
@@ -118,7 +121,9 @@ class PPNet(UnwrappedUnetBasedModel):
             if i == 0 and innermost:
                 data = self.up_modules[i]((data, stack_down.pop()))
             else:
-                data = self.up_modules[i]((data, stack_down.pop()), precomputed=self.upsample)
+                data = self.up_modules[i](
+                    (data, stack_down.pop()), precomputed=self.upsample
+                )
 
         last_feature = data.x
         if self._use_category:
@@ -137,7 +142,12 @@ class PPNet(UnwrappedUnetBasedModel):
         if self._weight_classes is not None:
             self._weight_classes = self._weight_classes.to(self.output.device)
 
-        self.loss = F.nll_loss(self.output, self.labels, weight=self._weight_classes, ignore_index=IGNORE_LABEL)
+        self.loss = F.nll_loss(
+            self.output,
+            self.labels,
+            weight=self._weight_classes,
+            ignore_index=IGNORE_LABEL,
+        )
 
     def backward(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
@@ -147,7 +157,11 @@ class PPNet(UnwrappedUnetBasedModel):
 
     def init_weights(self):
         for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
+            if (
+                isinstance(m, nn.Conv2d)
+                or isinstance(m, nn.Conv1d)
+                or isinstance(m, nn.Linear)
+            ):
                 # torch.nn.init.kaiming_normal_(m.weight)
                 torch.nn.init.xavier_normal_(m.weight)
                 if m.bias is not None:

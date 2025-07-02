@@ -2,7 +2,7 @@ import os
 from glob import glob
 from collections import defaultdict
 import torch
-from plyfile import PlyData, PlyElement
+from plyfile import PlyData
 from numpy.lib import recfunctions as rfn
 from torch_points3d.utils.colors import COLORS
 import numpy as np
@@ -13,7 +13,6 @@ def colored_print(color, msg):
 
 
 class ExperimentFolder:
-
     POS_KEYS = ["x", "y", "z"]
 
     def __init__(self, run_path):
@@ -51,10 +50,16 @@ class ExperimentFolder:
                 arr = np.asarray([e.data for e in plydata.elements])
                 names = list(arr.dtype.names)
                 pos_indices = [names.index(n) for n in self.POS_KEYS]
-                non_pos_indices = {n: names.index(n) for n in names if n not in self.POS_KEYS}
+                non_pos_indices = {
+                    n: names.index(n) for n in names if n not in self.POS_KEYS
+                }
                 arr_ = rfn.structured_to_unstructured(arr).squeeze()
                 xyz = arr_[:, pos_indices]
-                data = {"xyz": xyz, "columns": non_pos_indices.keys(), "name": self._data_name}
+                data = {
+                    "xyz": xyz,
+                    "columns": non_pos_indices.keys(),
+                    "name": self._data_name,
+                }
                 for n, i in non_pos_indices.items():
                     data[n] = arr_[:, i]
                 setattr(self, self._data_name, data)
@@ -130,7 +135,9 @@ class ExperimentManager(object):
             for model_name in self._experiment_with_models.keys():
                 for experiment in self._experiment_with_models[model_name]:
                     if experiment.contains_viz:
-                        self._experiment_with_viz[experiment.model_name].append(experiment)
+                        self._experiment_with_viz[experiment.model_name].append(
+                            experiment
+                        )
 
     @property
     def model_name_wviz(self):
@@ -144,14 +151,18 @@ class ExperimentManager(object):
     def load_ply_file(self, file):
         if hasattr(self, "_current_split"):
             self._current_file = file
-            self._current_experiment.load_ply(self._current_epoch, self._current_split, self._current_file)
+            self._current_experiment.load_ply(
+                self._current_epoch, self._current_split, self._current_file
+            )
         else:
             return []
 
     def from_split_to_file(self, split_name):
         if hasattr(self, "_current_epoch"):
             self._current_split = split_name
-            return self._current_experiment.get_files(self._current_epoch, self._current_split)
+            return self._current_experiment.get_files(
+                self._current_epoch, self._current_split
+            )
         else:
             return []
 
@@ -184,7 +195,9 @@ class ExperimentManager(object):
                 for metric_name in stats:
                     sentence = ""
                     for split_name in stats[metric_name].keys():
-                        sentence += "{}: {}, ".format(split_name, stats[metric_name][split_name])
+                        sentence += "{}: {}, ".format(
+                            split_name, stats[metric_name][split_name]
+                        )
                     metric_sentence = metric_name + "({})".format(sentence[:-2])
                     colored_print(COLORS.BBlue, metric_sentence)
                 print("")

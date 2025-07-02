@@ -7,8 +7,6 @@ from torch_points3d.core.common_modules.base_modules import BaseModule, FastBatc
 from torch_points3d.core.spatial_ops import RadiusNeighbourFinder
 from torch_points3d.core.data_transform import GridSampling3D
 from torch_points3d.utils.enums import ConvolutionFormat
-from torch_points3d.core.base_conv.message_passing import GlobalBaseModule
-from torch_points3d.core.common_modules.base_modules import Identity
 from torch_points3d.utils.config import is_list
 
 
@@ -42,15 +40,25 @@ class SimpleBlock(BaseModule):
         if deformable:
             density_parameter = self.DEFORMABLE_DENSITY
             self.kp_conv = KPConvDeformableLayer(
-                num_inputs, num_outputs, point_influence=prev_grid_size * sigma, add_one=add_one, **kwargs
+                num_inputs,
+                num_outputs,
+                point_influence=prev_grid_size * sigma,
+                add_one=add_one,
+                **kwargs,
             )
         else:
             density_parameter = self.RIGID_DENSITY
             self.kp_conv = KPConvLayer(
-                num_inputs, num_outputs, point_influence=prev_grid_size * sigma, add_one=add_one, **kwargs
+                num_inputs,
+                num_outputs,
+                point_influence=prev_grid_size * sigma,
+                add_one=add_one,
+                **kwargs,
             )
         search_radius = density_parameter * sigma * prev_grid_size
-        self.neighbour_finder = RadiusNeighbourFinder(search_radius, max_num_neighbors, conv_type=self.CONV_TYPE)
+        self.neighbour_finder = RadiusNeighbourFinder(
+            search_radius, max_num_neighbors, conv_type=self.CONV_TYPE
+        )
 
         if bn:
             self.bn = bn(num_outputs, momentum=bn_momentum)
@@ -81,10 +89,17 @@ class SimpleBlock(BaseModule):
             q_pos = query_data.pos
         else:
             q_pos, q_batch = query_data.pos, query_data.batch
-            idx_neighboors = self.neighbour_finder(data.pos, q_pos, batch_x=data.batch, batch_y=q_batch)
+            idx_neighboors = self.neighbour_finder(
+                data.pos, q_pos, batch_x=data.batch, batch_y=q_batch
+            )
             query_data.idx_neighboors = idx_neighboors
 
-        x = self.kp_conv(q_pos, data.pos, idx_neighboors, data.x,)
+        x = self.kp_conv(
+            q_pos,
+            data.pos,
+            idx_neighboors,
+            data.x,
+        )
         if self.bn:
             x = self.bn(x)
         x = self.activation(x)
@@ -94,11 +109,13 @@ class SimpleBlock(BaseModule):
         return query_data
 
     def extra_repr(self):
-        return "Nb parameters: {}; {}; {}".format(self.nb_params, self.sampler, self.neighbour_finder)
+        return "Nb parameters: {}; {}; {}".format(
+            self.nb_params, self.sampler, self.neighbour_finder
+        )
 
 
 class ResnetBBlock(BaseModule):
-    """ Resnet block with optional bottleneck activated by default
+    """Resnet block with optional bottleneck activated by default
     Arguments:
         down_conv_nn (len of 2 or 3) :
                         sizes of input, intermediate, output.
@@ -134,7 +151,9 @@ class ResnetBBlock(BaseModule):
         **kwargs,
     ):
         super(ResnetBBlock, self).__init__()
-        assert len(down_conv_nn) == 2 or len(down_conv_nn) == 3, "down_conv_nn should be of size 2 or 3"
+        assert len(down_conv_nn) == 2 or len(down_conv_nn) == 3, (
+            "down_conv_nn should be of size 2 or 3"
+        )
         if len(down_conv_nn) == 2:
             num_inputs, num_outputs = down_conv_nn
             d_2 = num_outputs // 4
@@ -166,20 +185,29 @@ class ResnetBBlock(BaseModule):
         if self.has_bottleneck:
             if bn:
                 self.unary_1 = torch.nn.Sequential(
-                    Lin(num_inputs, d_2, bias=False), bn(d_2, momentum=bn_momentum), activation
+                    Lin(num_inputs, d_2, bias=False),
+                    bn(d_2, momentum=bn_momentum),
+                    activation,
                 )
                 self.unary_2 = torch.nn.Sequential(
-                    Lin(d_2, num_outputs, bias=False), bn(num_outputs, momentum=bn_momentum), activation
+                    Lin(d_2, num_outputs, bias=False),
+                    bn(num_outputs, momentum=bn_momentum),
+                    activation,
                 )
             else:
-                self.unary_1 = torch.nn.Sequential(Lin(num_inputs, d_2, bias=False), activation)
-                self.unary_2 = torch.nn.Sequential(Lin(d_2, num_outputs, bias=False), activation)
+                self.unary_1 = torch.nn.Sequential(
+                    Lin(num_inputs, d_2, bias=False), activation
+                )
+                self.unary_2 = torch.nn.Sequential(
+                    Lin(d_2, num_outputs, bias=False), activation
+                )
 
         # Shortcut
         if num_inputs != num_outputs:
             if bn:
                 self.shortcut_op = torch.nn.Sequential(
-                    Lin(num_inputs, num_outputs, bias=False), bn(num_outputs, momentum=bn_momentum)
+                    Lin(num_inputs, num_outputs, bias=False),
+                    bn(num_outputs, momentum=bn_momentum),
                 )
             else:
                 self.shortcut_op = Lin(num_inputs, num_outputs, bias=False)
@@ -191,7 +219,7 @@ class ResnetBBlock(BaseModule):
 
     def forward(self, data, precomputed=None, **kwargs):
         """
-            data: x, pos, batch_idx and idx_neighbour when the neighboors of each point in pos have already been computed
+        data: x, pos, batch_idx and idx_neighbour when the neighboors of each point in pos have already been computed
         """
         # Main branch
         output = data.clone()
@@ -205,7 +233,9 @@ class ResnetBBlock(BaseModule):
         # Shortcut
         if self.is_strided:
             idx_neighboors = output.idx_neighboors
-            shortcut_x = torch.cat([shortcut_x, torch.zeros_like(shortcut_x[:1, :])], axis=0)  # Shadow feature
+            shortcut_x = torch.cat(
+                [shortcut_x, torch.zeros_like(shortcut_x[:1, :])], axis=0
+            )  # Shadow feature
             neighborhood_features = shortcut_x[idx_neighboors]
             shortcut_x = torch.max(neighborhood_features, dim=1, keepdim=False)[0]
 
@@ -226,7 +256,7 @@ class ResnetBBlock(BaseModule):
 
 
 class KPDualBlock(BaseModule):
-    """ Dual KPConv block (usually strided + non strided)
+    """Dual KPConv block (usually strided + non strided)
 
     Arguments: Accepted kwargs
         block_names: Name of the blocks to be used as part of this dual block

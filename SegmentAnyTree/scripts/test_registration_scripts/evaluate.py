@@ -2,8 +2,8 @@
 compute features, evaluate metrics and save results
 only axcept fragment
 """
+
 import copy
-import open3d
 import torch
 import hydra
 import logging
@@ -20,7 +20,9 @@ ROOT = os.path.join(DIR, "..", "..")
 sys.path.insert(0, ROOT)
 
 from torch_points3d.models.model_factory import instantiate_model
-from torch_points3d.datasets.dataset_factory import instantiate_dataset, get_dataset_class
+from torch_points3d.datasets.dataset_factory import (
+    instantiate_dataset,
+)
 from torch_points3d.models.base_model import BaseModel
 from torch_points3d.datasets.base_dataset import BaseDataset
 
@@ -99,13 +101,17 @@ def compute_metrics(
     t0 = time.time()
     matches_pred = get_matches(feat, feat_target, sym=sym)
     t1 = time.time()
-    hit_ratio = compute_hit_ratio(xyz[matches_pred[:, 0]], xyz_target[matches_pred[:, 1]], T_gt, tau_1)
+    hit_ratio = compute_hit_ratio(
+        xyz[matches_pred[:, 0]], xyz_target[matches_pred[:, 1]], T_gt, tau_1
+    )
     res["hit_ratio"] = hit_ratio.item()
     res["feat_match_ratio"] = float(hit_ratio.item() > tau_2)
     res["time_get_matches"] = t1 - t0
     # fast global registration
     t = time.time()
-    T_fgr = fast_global_registration(xyz[matches_pred[:, 0]], xyz_target[matches_pred[:, 1]])
+    T_fgr = fast_global_registration(
+        xyz[matches_pred[:, 0]], xyz_target[matches_pred[:, 1]]
+    )
     trans_error_fgr, rot_error_fgr = compute_transfo_error(T_fgr, T_gt)
     res["trans_error_fgr"] = trans_error_fgr.item()
     res["rot_error_fgr"] = rot_error_fgr.item()
@@ -122,7 +128,9 @@ def compute_metrics(
     if use_teaser:
         t = time.time()
         T_teaser = teaser_pp_registration(
-            xyz[matches_pred[:, 0]], xyz_target[matches_pred[:, 1]], noise_bound=noise_bound_teaser
+            xyz[matches_pred[:, 0]],
+            xyz_target[matches_pred[:, 1]],
+            noise_bound=noise_bound_teaser,
         )
         trans_error_teaser, rot_error_teaser = compute_transfo_error(T_teaser, T_gt)
         res["trans_error_teaser"] = trans_error_teaser.item()
@@ -143,13 +151,16 @@ def compute_metrics(
 
 
 def run(model: BaseModel, dataset: BaseDataset, device, cfg):
-
     reg_thresh = cfg.data.registration_recall_thresh
     if reg_thresh is None:
         reg_thresh = 0.2
     print(time.strftime("%Y%m%d-%H%M%S"))
     dataset.create_dataloaders(
-        model, 1, False, cfg.training.num_workers, False,
+        model,
+        1,
+        False,
+        cfg.training.num_workers,
+        False,
     )
     loader = dataset.test_dataloaders[0]
     list_res = []
@@ -160,7 +171,9 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
                 model.set_input(data, device)
                 model.forward()
                 t1 = time.time()
-                name_scene, name_pair_source, name_pair_target = dataset.test_dataset[0].get_name(i)
+                name_scene, name_pair_source, name_pair_target = dataset.test_dataset[
+                    0
+                ].get_name(i)
                 input, input_target = model.get_input()
                 xyz, xyz_target = input.pos, input_target.pos
                 ind, ind_target = input.ind, input_target.ind
@@ -171,8 +184,14 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
 
                 rand = torch.randperm(len(feat))[: cfg.data.num_points]
                 rand_target = torch.randperm(len(feat_target))[: cfg.data.num_points]
-                res = dict(name_scene=name_scene, name_pair_source=name_pair_source, name_pair_target=name_pair_target)
-                T_gt = estimate_transfo(xyz[matches_gt[:, 0]], xyz_target[matches_gt[:, 1]])
+                res = dict(
+                    name_scene=name_scene,
+                    name_pair_source=name_pair_source,
+                    name_pair_target=name_pair_target,
+                )
+                T_gt = estimate_transfo(
+                    xyz[matches_gt[:, 0]], xyz_target[matches_gt[:, 1]]
+                )
                 t2 = time.time()
                 metric = compute_metrics(
                     xyz[rand],
@@ -195,7 +214,9 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
                 )
                 res = dict(**res, **metric)
                 res["time_feature"] = t1 - t0
-                res["time_feature_per_point"] = (t1 - t0) / (len(input.pos) + len(input_target.pos))
+                res["time_feature_per_point"] = (t1 - t0) / (
+                    len(input.pos) + len(input_target.pos)
+                )
                 res["time_prep"] = t2 - t1
 
                 list_res.append(res)
@@ -204,7 +225,9 @@ def run(model: BaseModel, dataset: BaseDataset, device, cfg):
     output_path = os.path.join(cfg.training.checkpoint_dir, cfg.data.name, "matches")
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
-    df.to_csv(osp.join(output_path, "final_res_{}.csv".format(time.strftime("%Y%m%d-%H%M%S"))))
+    df.to_csv(
+        osp.join(output_path, "final_res_{}.csv".format(time.strftime("%Y%m%d-%H%M%S")))
+    )
     print(df.groupby("name_scene").mean())
 
 
@@ -213,14 +236,21 @@ def main(cfg):
     OmegaConf.set_struct(cfg, False)
 
     # Get device
-    device = torch.device("cuda" if (torch.cuda.is_available() and cfg.training.cuda) else "cpu")
+    device = torch.device(
+        "cuda" if (torch.cuda.is_available() and cfg.training.cuda) else "cpu"
+    )
     log.info("DEVICE : {}".format(device))
 
     # Enable CUDNN BACKEND
     torch.backends.cudnn.enabled = cfg.training.enable_cudnn
 
     # Checkpoint
-    checkpoint = ModelCheckpoint(cfg.training.checkpoint_dir, cfg.model_name, cfg.training.weight_name, strict=True)
+    checkpoint = ModelCheckpoint(
+        cfg.training.checkpoint_dir,
+        cfg.model_name,
+        cfg.training.weight_name,
+        strict=True,
+    )
 
     # Setup the dataset config
     # Generic config
@@ -233,7 +263,10 @@ def main(cfg):
         model = instantiate_model(copy.deepcopy(cfg), dataset)
         model.set_pretrained_weights()
     log.info(model)
-    log.info("Model size = %i", sum(param.numel() for param in model.parameters() if param.requires_grad))
+    log.info(
+        "Model size = %i",
+        sum(param.numel() for param in model.parameters() if param.requires_grad),
+    )
 
     log.info(dataset)
 

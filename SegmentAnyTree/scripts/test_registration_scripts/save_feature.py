@@ -1,4 +1,3 @@
-import open3d
 import torch
 import hydra
 import logging
@@ -13,8 +12,9 @@ ROOT = os.path.join(DIR, "..", "..")
 sys.path.insert(0, ROOT)
 
 # Import building function for model and dataset
-from torch_points3d.datasets.dataset_factory import instantiate_dataset, get_dataset_class
-from torch_points3d.models.model_factory import instantiate_model
+from torch_points3d.datasets.dataset_factory import (
+    instantiate_dataset,
+)
 
 from torch_points3d.models.base_model import BaseModel
 from torch_points3d.datasets.base_dataset import BaseDataset
@@ -24,7 +24,6 @@ from torch_points3d.metrics.colored_tqdm import Coloredtqdm as Ctq
 from torch_points3d.metrics.model_checkpoint import ModelCheckpoint
 
 # Utils import
-from torch_points3d.utils.colors import COLORS
 
 log = logging.getLogger(__name__)
 
@@ -58,7 +57,11 @@ def run(model: BaseModel, dataset: BaseDataset, device, output_path, cfg):
         for i in range(num_fragment):
             dataset.set_patches(i)
             dataset.create_dataloaders(
-                model, cfg.training.batch_size, False, cfg.training.num_workers, False,
+                model,
+                cfg.training.batch_size,
+                False,
+                cfg.training.num_workers,
+                False,
             )
             loader = dataset.test_dataloaders[0]
             features = []
@@ -75,10 +78,20 @@ def run(model: BaseModel, dataset: BaseDataset, device, output_path, cfg):
                         features.append(model.get_output().cpu())
             features = torch.cat(features, 0).numpy()
             log.info("save {} from {} in  {}".format(pc_name, scene_name, output_path))
-            save(output_path, scene_name, pc_name, dataset.base_dataset[i].to("cpu"), features)
+            save(
+                output_path,
+                scene_name,
+                pc_name,
+                dataset.base_dataset[i].to("cpu"),
+                features,
+            )
     else:
         dataset.create_dataloaders(
-            model, 1, False, cfg.training.num_workers, False,
+            model,
+            1,
+            False,
+            cfg.training.num_workers,
+            False,
         )
         loader = dataset.test_dataloaders[0]
         with Ctq(loader) as tq_test_loader:
@@ -91,7 +104,13 @@ def run(model: BaseModel, dataset: BaseDataset, device, output_path, cfg):
                     model.set_input(data, device)
                     model.forward()
                     features = model.get_output()  # batch of 1
-                    save(output_path, scene_name, pc_name, data.to("cpu"), features.to("cpu"))
+                    save(
+                        output_path,
+                        scene_name,
+                        pc_name,
+                        data.to("cpu"),
+                        features.to("cpu"),
+                    )
 
 
 @hydra.main(config_path="../../conf/config.yaml")
@@ -99,14 +118,21 @@ def main(cfg):
     OmegaConf.set_struct(cfg, False)
 
     # Get device
-    device = torch.device("cuda" if (torch.cuda.is_available() and cfg.training.cuda) else "cpu")
+    device = torch.device(
+        "cuda" if (torch.cuda.is_available() and cfg.training.cuda) else "cpu"
+    )
     log.info("DEVICE : {}".format(device))
 
     # Enable CUDNN BACKEND
     torch.backends.cudnn.enabled = cfg.training.enable_cudnn
 
     # Checkpoint
-    checkpoint = ModelCheckpoint(cfg.training.checkpoint_dir, cfg.model_name, cfg.training.weight_name, strict=True)
+    checkpoint = ModelCheckpoint(
+        cfg.training.checkpoint_dir,
+        cfg.model_name,
+        cfg.training.weight_name,
+        strict=True,
+    )
 
     # Setup the dataset config
     # Generic config
@@ -114,7 +140,10 @@ def main(cfg):
     dataset = instantiate_dataset(cfg.data)
     model = checkpoint.create_model(dataset, weight_name=cfg.training.weight_name)
     log.info(model)
-    log.info("Model size = %i", sum(param.numel() for param in model.parameters() if param.requires_grad))
+    log.info(
+        "Model size = %i",
+        sum(param.numel() for param in model.parameters() if param.requires_grad),
+    )
 
     log.info(dataset)
 

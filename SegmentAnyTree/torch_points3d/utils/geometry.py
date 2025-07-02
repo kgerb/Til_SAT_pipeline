@@ -4,15 +4,27 @@ import random
 
 def euler_angles_to_rotation_matrix(theta, random_order=False):
     R_x = torch.tensor(
-        [[1, 0, 0], [0, torch.cos(theta[0]), -torch.sin(theta[0])], [0, torch.sin(theta[0]), torch.cos(theta[0])]]
+        [
+            [1, 0, 0],
+            [0, torch.cos(theta[0]), -torch.sin(theta[0])],
+            [0, torch.sin(theta[0]), torch.cos(theta[0])],
+        ]
     )
 
     R_y = torch.tensor(
-        [[torch.cos(theta[1]), 0, torch.sin(theta[1])], [0, 1, 0], [-torch.sin(theta[1]), 0, torch.cos(theta[1])]]
+        [
+            [torch.cos(theta[1]), 0, torch.sin(theta[1])],
+            [0, 1, 0],
+            [-torch.sin(theta[1]), 0, torch.cos(theta[1])],
+        ]
     )
 
     R_z = torch.tensor(
-        [[torch.cos(theta[2]), -torch.sin(theta[2]), 0], [torch.sin(theta[2]), torch.cos(theta[2]), 0], [0, 0, 1]]
+        [
+            [torch.cos(theta[2]), -torch.sin(theta[2]), 0],
+            [torch.sin(theta[2]), torch.cos(theta[2]), 0],
+            [0, 0, 1],
+        ]
     )
 
     matrices = [R_x, R_y, R_z]
@@ -23,7 +35,9 @@ def euler_angles_to_rotation_matrix(theta, random_order=False):
 
 
 def get_cross_product_matrix(k):
-    return torch.tensor([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]], device=k.device)
+    return torch.tensor(
+        [[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]], device=k.device
+    )
 
 
 def rodrigues(axis, theta):
@@ -33,7 +47,11 @@ def rodrigues(axis, theta):
     """
     K = get_cross_product_matrix(axis)
     t = torch.tensor([theta], device=axis.device)
-    R = torch.eye(3, device=axis.device) + torch.sin(t) * K + (1 - torch.cos(t)) * K.mm(K)
+    R = (
+        torch.eye(3, device=axis.device)
+        + torch.sin(t) * K
+        + (1 - torch.cos(t)) * K.mm(K)
+    )
     return R
 
 

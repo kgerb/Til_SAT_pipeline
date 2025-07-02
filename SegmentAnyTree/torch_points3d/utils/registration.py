@@ -3,6 +3,7 @@ registration toolbox (algorithm for some registration algorithm)
 Implemented: fast_global_registration
 teaser
 """
+
 import open3d
 import numpy as np
 import torch
@@ -11,11 +12,12 @@ from torch_geometric.nn import knn
 
 
 def get_matches(feat_source, feat_target, sym=False):
-
     matches = knn(feat_target, feat_source, k=1).T
     if sym:
         match_inv = knn(feat_source, feat_target, k=1).T
-        mask = match_inv[matches[:, 1], 1] == torch.arange(matches.shape[0], device=feat_source.device)
+        mask = match_inv[matches[:, 1], 1] == torch.arange(
+            matches.shape[0], device=feat_source.device
+        )
         return matches[mask]
     else:
         return matches
@@ -155,9 +157,13 @@ def ransac_registration(xyz, xyz_target, distance_threshold=0.05, num_iterations
         pcd_t,
         corres,
         distance_threshold,
-        estimation_method=open3d.pipelines.registration.TransformationEstimationPointToPoint(False),
+        estimation_method=open3d.pipelines.registration.TransformationEstimationPointToPoint(
+            False
+        ),
         ransac_n=4,
-        criteria=open3d.pipelines.registration.RANSACConvergenceCriteria(4000000, num_iterations),
+        criteria=open3d.pipelines.registration.RANSACConvergenceCriteria(
+            4000000, num_iterations
+        ),
     )
 
     return torch.from_numpy(result.transformation).float()

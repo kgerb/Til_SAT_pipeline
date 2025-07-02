@@ -7,7 +7,6 @@ from torch_geometric.nn.unpool import knn_interpolate
 
 from torch_points3d.metrics.confusion_matrix import ConfusionMatrix
 from torch_points3d.metrics.segmentation_tracker import SegmentationTracker
-from torch_points3d.datasets.segmentation import IGNORE_LABEL
 from torch_points3d.core.data_transform import SaveOriginalPosId
 from torch_points3d.models import model_interface
 
@@ -25,8 +24,7 @@ class ScannetSegmentationTracker(SegmentationTracker):
         self._full_acc = None
 
     def track(self, model: model_interface.TrackerInterface, full_res=False, **kwargs):
-        """ Add current model predictions (usually the result of a batch) to the tracking
-        """
+        """Add current model predictions (usually the result of a batch) to the tracking"""
         super().track(model)
 
         # Set conv type
@@ -39,8 +37,7 @@ class ScannetSegmentationTracker(SegmentationTracker):
         self._vote(kwargs.get("data"), model.get_output())
 
     def get_metrics(self, verbose=False) -> Dict[str, Any]:
-        """ Returns a dictionnary of all metrics and losses being tracked
-        """
+        """Returns a dictionnary of all metrics and losses being tracked"""
         metrics = super().get_metrics(verbose)
         if self._full_acc:
             metrics["{}_full_acc".format(self._stage)] = self._full_acc
@@ -62,11 +59,17 @@ class ScannetSegmentationTracker(SegmentationTracker):
                 mask = full_labels != self._ignore_label
                 full_labels = full_labels[mask]
                 full_preds = self._full_preds[scan_id].cpu()[mask].numpy()
-                self._full_confusion_matrix.count_predicted_batch(full_labels, full_preds)
+                self._full_confusion_matrix.count_predicted_batch(
+                    full_labels, full_preds
+                )
 
             self._full_acc = 100 * self._full_confusion_matrix.get_overall_accuracy()
-            self._full_macc = 100 * self._full_confusion_matrix.get_mean_class_accuracy()
-            self._full_miou = 100 * self._full_confusion_matrix.get_average_intersection_union()
+            self._full_macc = (
+                100 * self._full_confusion_matrix.get_mean_class_accuracy()
+            )
+            self._full_miou = (
+                100 * self._full_confusion_matrix.get_average_intersection_union()
+            )
 
         # Save files to disk
         if make_submission and self._stage == "test":
@@ -77,13 +80,15 @@ class ScannetSegmentationTracker(SegmentationTracker):
         path_to_submission = self._dataset.path_to_submission
         for scan_id in self._full_preds:
             full_pred = self._full_preds[scan_id].cpu().numpy().astype(np.int8)
-            full_pred = orginal_class_ids[full_pred]  # remap labels to original labels between 0 and 40
+            full_pred = orginal_class_ids[
+                full_pred
+            ]  # remap labels to original labels between 0 and 40
             scan_name = self._raw_datas[scan_id].scan_name
             path_file = osp.join(path_to_submission, "{}.txt".format(scan_name))
             np.savetxt(path_file, full_pred, delimiter="/n", fmt="%d")
 
     def _vote(self, data, output):
-        """ Populates scores for the points in data
+        """Populates scores for the points in data
 
         Parameters
         ----------
@@ -102,10 +107,16 @@ class ScannetSegmentationTracker(SegmentationTracker):
         for idx_batch, id_scan in enumerate(id_scans):
             # First time we see this scan
             if id_scan not in self._raw_datas:
-                raw_data = self._dataset.get_raw_data(self._stage, id_scan, remap_labels=True)
+                raw_data = self._dataset.get_raw_data(
+                    self._stage, id_scan, remap_labels=True
+                )
                 self._raw_datas[id_scan] = raw_data
-                self._vote_counts[id_scan] = torch.zeros(raw_data.pos.shape[0], dtype=torch.int)
-                self._votes[id_scan] = torch.zeros((raw_data.pos.shape[0], self._num_classes), dtype=torch.float)
+                self._vote_counts[id_scan] = torch.zeros(
+                    raw_data.pos.shape[0], dtype=torch.int
+                )
+                self._votes[id_scan] = torch.zeros(
+                    (raw_data.pos.shape[0], self._num_classes), dtype=torch.float
+                )
             else:
                 raw_data = self._raw_datas[id_scan]
 
@@ -118,10 +129,12 @@ class ScannetSegmentationTracker(SegmentationTracker):
             self._vote_counts[id_scan][idx] += 1
 
     def _predict_full_res(self):
-        """ Predict full resolution results based on votes """
+        """Predict full resolution results based on votes"""
         for id_scan in self._votes:
             has_prediction = self._vote_counts[id_scan] > 0
-            self._votes[id_scan][has_prediction] /= self._vote_counts[id_scan][has_prediction].unsqueeze(-1)
+            self._votes[id_scan][has_prediction] /= self._vote_counts[id_scan][
+                has_prediction
+            ].unsqueeze(-1)
 
             # Upsample and predict
             full_pred = knn_interpolate(

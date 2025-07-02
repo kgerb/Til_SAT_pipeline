@@ -9,14 +9,14 @@ from pytorch_metric_learning.losses import *
 _custom_losses = sys.modules["torch_points3d.core.losses.losses"]
 _torch_metric_learning_losses = sys.modules["pytorch_metric_learning.losses"]
 _torch_metric_learning_miners = sys.modules["pytorch_metric_learning.miners"]
-_intersection = set(_custom_losses.__dict__) & set(_torch_metric_learning_losses.__dict__)
+_intersection = set(_custom_losses.__dict__) & set(
+    _torch_metric_learning_losses.__dict__
+)
 _intersection = set([module for module in _intersection if not module.startswith("_")])
 if _intersection:
     raise Exception(
         "It seems that you are overiding a transform from pytorch metric learning, \
-            this is forbiden, please rename your classes {}".format(
-            _intersection
-        )
+            this is forbiden, please rename your classes {}".format(_intersection)
     )
 
 
@@ -30,12 +30,12 @@ def instantiate_loss_or_miner(option, mode="loss"):
     """
     class_ = getattr(option, "class", None)
     try:
-        params = option.get('params')
+        params = option.get("params")
     except KeyError:
         params = None
 
     try:
-        lparams = option.get('lparams')
+        lparams = option.get("lparams")
     except KeyError:
         lparams = None
 

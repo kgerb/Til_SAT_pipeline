@@ -3,14 +3,13 @@ import os
 import shutil
 import torch
 
-from torch_geometric.datasets import ModelNet
-from torch_geometric.data import DataLoader, InMemoryDataset, extract_zip, Data
-import torch_geometric.transforms as T
+from torch_geometric.data import InMemoryDataset, extract_zip, Data
 from torch_geometric.io import read_txt_array
 
 from torch_points3d.datasets.base_dataset import BaseDataset
 from torch_points3d.metrics.classification_tracker import ClassificationTracker
 from torch_points3d.utils.download import download_url
+
 
 class SampledModelNet(InMemoryDataset):
     r"""The ModelNet10/40 dataset from the `"3D ShapeNets: A Deep
@@ -52,16 +51,37 @@ class SampledModelNet(InMemoryDataset):
 
     url = "https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip"
 
-    def __init__(self, root, name="10", train=True, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(
+        self,
+        root,
+        name="10",
+        train=True,
+        transform=None,
+        pre_transform=None,
+        pre_filter=None,
+    ):
         assert name in ["10", "40"]
         self.name = name
-        super(SampledModelNet, self).__init__(root, transform, pre_transform, pre_filter)
+        super(SampledModelNet, self).__init__(
+            root, transform, pre_transform, pre_filter
+        )
         path = self.processed_paths[0] if train else self.processed_paths[1]
         self.data, self.slices = torch.load(path)
 
     @property
     def raw_file_names(self):
-        return ["bathtub", "bed", "chair", "desk", "dresser", "monitor", "night_stand", "sofa", "table", "toilet"]
+        return [
+            "bathtub",
+            "bed",
+            "chair",
+            "desk",
+            "dresser",
+            "monitor",
+            "night_stand",
+            "sofa",
+            "table",
+            "toilet",
+        ]
 
     @property
     def processed_file_names(self):
@@ -80,10 +100,14 @@ class SampledModelNet(InMemoryDataset):
         torch.save(self.process_set("test"), self.processed_paths[1])
 
     def process_set(self, dataset):
-        with open(osp.join(self.raw_dir, "modelnet{}_shape_names.txt".format(self.name)), "r") as f:
+        with open(
+            osp.join(self.raw_dir, "modelnet{}_shape_names.txt".format(self.name)), "r"
+        ) as f:
             categories = f.read().splitlines()
             categories = sorted(categories)
-        with open(osp.join(self.raw_dir, "modelnet{}_{}.txt".format(self.name, dataset)), "r") as f:
+        with open(
+            osp.join(self.raw_dir, "modelnet{}_{}.txt".format(self.name, dataset)), "r"
+        ) as f:
             split_objects = f.read().splitlines()
 
         data_list = []
@@ -109,7 +133,6 @@ class SampledModelNet(InMemoryDataset):
 
 
 class ModelNetDataset(BaseDataset):
-
     AVAILABLE_NUMBERS = ["10", "40"]
 
     def __init__(self, dataset_opt):
@@ -141,4 +164,6 @@ class ModelNetDataset(BaseDataset):
         Returns:
             [BaseTracker] -- tracker
         """
-        return ClassificationTracker(self, wandb_log=wandb_log, use_tensorboard=tensorboard_log)
+        return ClassificationTracker(
+            self, wandb_log=wandb_log, use_tensorboard=tensorboard_log
+        )

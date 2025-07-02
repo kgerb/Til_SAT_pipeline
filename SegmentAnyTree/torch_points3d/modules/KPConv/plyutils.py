@@ -146,7 +146,6 @@ def read_ply(filename, triangular_mesh=False):
     """
 
     with open(filename, "rb") as plyfile:
-
         # Check if the file start with ply
         if b"ply" not in plyfile.readline():
             raise ValueError("The file does not start whith the word ply")
@@ -161,7 +160,6 @@ def read_ply(filename, triangular_mesh=False):
 
         # PointCloud reader vs mesh reader
         if triangular_mesh:
-
             # Parse header
             num_points, num_faces, properties = parse_mesh_header(plyfile, ext)
 
@@ -182,7 +180,6 @@ def read_ply(filename, triangular_mesh=False):
             data = [vertex_data, faces]
 
         else:
-
             # Parse header
             num_points, properties = parse_header(plyfile, ext)
 
@@ -193,7 +190,6 @@ def read_ply(filename, triangular_mesh=False):
 
 
 def header_properties(field_list, field_names):
-
     # List of lines to write
     lines = []
 
@@ -237,7 +233,11 @@ def write_ply(filename, field_list, field_names, triangular_faces=None):
     """
 
     # Format list input to the right form
-    field_list = list(field_list) if (type(field_list) == list or type(field_list) == tuple) else list((field_list,))
+    field_list = (
+        list(field_list)
+        if (type(field_list) == list or type(field_list) == tuple)
+        else list((field_list,))
+    )
     for i, field in enumerate(field_list):
         if field.ndim < 2:
             field_list[i] = field.reshape(-1, 1)
@@ -263,7 +263,6 @@ def write_ply(filename, field_list, field_names, triangular_faces=None):
 
     # open in text mode to write the header
     with open(filename, "w") as plyfile:
-
         # First magical word
         header = ["ply"]
 
@@ -287,7 +286,6 @@ def write_ply(filename, field_list, field_names, triangular_faces=None):
 
     # open in binary/append to use tofile
     with open(filename, "ab") as plyfile:
-
         # Create a structured array
         i = 0
         type_list = []
@@ -318,7 +316,7 @@ def write_ply(filename, field_list, field_names, triangular_faces=None):
 
 
 def describe_element(name, df):
-    """ Takes the columns of the dataframe and builds a ply-like description
+    """Takes the columns of the dataframe and builds a ply-like description
     Parameters
     ----------
     name: str

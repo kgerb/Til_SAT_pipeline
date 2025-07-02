@@ -7,8 +7,6 @@ from torch_geometric.data import Data
 from torch_points_kernels.points_cpu import ball_query
 from functools import partial
 
-from torch_points3d.core.data_transform import MultiScaleTransform
-from torch_points3d.core.data_transform import PairTransform
 from torch_points3d.datasets.registration.pair import DensePairBatch
 from torch_points3d.utils.enums import ConvolutionFormat
 from torch_points3d.utils.config import ConvolutionFormatFactory
@@ -23,6 +21,7 @@ from torch_points3d.metrics.registration_tracker import PatchRegistrationTracker
 from torch_points3d.metrics.registration_tracker import FragmentRegistrationTracker
 
 log = logging.getLogger(__name__)
+
 
 class BaseSiameseDataset(BaseDataset):
     def __init__(self, dataset_opt):
@@ -53,7 +52,11 @@ class BaseSiameseDataset(BaseDataset):
                 fn = DensePairBatch.from_data_list
             else:
                 fn = PairBatch.from_data_list
-        return partial(BaseDataset._collate_fn, collate_fn=fn, pre_collate_transform=pre_collate_transform)
+        return partial(
+            BaseDataset._collate_fn,
+            collate_fn=fn,
+            pre_collate_transform=pre_collate_transform,
+        )
 
     def get_tracker(self, wandb_log: bool, tensorboard_log: bool):
         """
@@ -66,7 +69,9 @@ class BaseSiameseDataset(BaseDataset):
             [BaseTracker] -- tracker
         """
         if self.is_patch:
-            return PatchRegistrationTracker(self, wandb_log=wandb_log, use_tensorboard=tensorboard_log)
+            return PatchRegistrationTracker(
+                self, wandb_log=wandb_log, use_tensorboard=tensorboard_log
+            )
         else:
             if self.is_end2end:
                 raise NotImplementedError("implement end2end tracker")
@@ -83,7 +88,6 @@ class BaseSiameseDataset(BaseDataset):
 
 
 class GeneralFragment(object):
-
     """
     implementation of get_fragment and get_name to avoid repetitions
     """
@@ -92,7 +96,10 @@ class GeneralFragment(object):
         """
         get the pair before the data augmentation
         """
-        match = np.load(osp.join(self.path_match, "matches{:06d}.npy".format(idx)), allow_pickle=True).item()
+        match = np.load(
+            osp.join(self.path_match, "matches{:06d}.npy".format(idx)),
+            allow_pickle=True,
+        ).item()
         if not self.self_supervised:
             data_source = torch.load(match["path_source"]).to(torch.float)
             data_target = torch.load(match["path_target"]).to(torch.float)
@@ -104,7 +111,9 @@ class GeneralFragment(object):
             else:
                 data_source_o = torch.load(match["path_target"]).to(torch.float)
                 data_target_o = torch.load(match["path_target"]).to(torch.float)
-            data_source, data_target, new_pair = self.unsupervised_preprocess(data_source_o, data_target_o)
+            data_source, data_target, new_pair = self.unsupervised_preprocess(
+                data_source_o, data_target_o
+            )
 
         return data_source, data_target, new_pair
 
@@ -128,11 +137,20 @@ class GeneralFragment(object):
                 data_target = data_target_o
             pos = data_source.pos
             i = torch.randint(0, len(pos), (1,))
-            size_block = random.random() * (self.max_size_block - self.min_size_block) + self.min_size_block
+            size_block = (
+                random.random() * (self.max_size_block - self.min_size_block)
+                + self.min_size_block
+            )
             point = pos[i].view(1, 3)
             ind, dist = ball_query(point, pos, radius=size_block, max_num=-1, mode=1)
             _, col = ind[dist[:, 0] > 0].t()
-            ind_t, dist_t = ball_query(data_target.pos, pos[col], radius=self.max_dist_overlap, max_num=1, mode=1)
+            ind_t, dist_t = ball_query(
+                data_target.pos,
+                pos[col],
+                radius=self.max_dist_overlap,
+                max_num=1,
+                mode=1,
+            )
             col_target, ind_col = ind_t[dist_t[:, 0] > 0].t()
             col = col[ind_col]
             new_pair = torch.stack((col, col_target)).T
@@ -140,7 +158,6 @@ class GeneralFragment(object):
         return data_source, data_target, new_pair
 
     def get_fragment(self, idx):
-
         data_source, data_target, new_pair = self.get_raw_pair(idx)
 
         if self.transform is not None:
@@ -152,7 +169,9 @@ class GeneralFragment(object):
             batch = Pair.make_pair(data_source, data_target)
         if self.is_online_matching:
             new_match = compute_overlap_and_matches(
-                Data(pos=data_source.pos), Data(pos=data_target.pos), self.max_dist_overlap
+                Data(pos=data_source.pos),
+                Data(pos=data_target.pos),
+                self.max_dist_overlap,
             )
             batch.pair_ind = torch.from_numpy(new_match["pair"].copy())
         else:
@@ -178,7 +197,10 @@ class GeneralFragment(object):
         get the name of the scene and the name of the fragments.
         """
 
-        match = np.load(osp.join(self.path_match, "matches{:06d}.npy".format(idx)), allow_pickle=True).item()
+        match = np.load(
+            osp.join(self.path_match, "matches{:06d}.npy".format(idx)),
+            allow_pickle=True,
+        ).item()
         source = match["name_source"]
         target = match["name_target"]
         scene = match["scene"]

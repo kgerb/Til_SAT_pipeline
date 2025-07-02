@@ -1,24 +1,15 @@
-import glob
-import json
 import logging
 import numpy as np
 import os
 import os.path as osp
 
-import shutil
 import torch
 
-from torch_geometric.data import Dataset, download_url, extract_zip
+from torch_geometric.data import Dataset
 from torch_geometric.data import Data
-from torch_points3d.datasets.registration.detector import RandomDetector
-from torch_points3d.datasets.registration.utils import rgbd2fragment_rough
-from torch_points3d.datasets.registration.utils import rgbd2fragment_fine
 from torch_points3d.datasets.registration.utils import compute_overlap_and_matches
-from torch_points3d.datasets.registration.utils import to_list
 from torch_points3d.datasets.registration.utils import files_exist
 from torch_points3d.datasets.registration.utils import makedirs
-from torch_points3d.datasets.registration.utils import get_urls
-from torch_points3d.datasets.registration.utils import PatchExtractor
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +47,9 @@ def compute_spaced_time_frame(list_name_frames, path, min_dist):
 
     list_sensor_pos = torch.stack(list_sensor_pos)
 
-    mask = ((list_sensor_pos.unsqueeze(0) - list_sensor_pos.unsqueeze(1)) ** 2).sum(2) > (min_dist ** 2)
+    mask = ((list_sensor_pos.unsqueeze(0) - list_sensor_pos.unsqueeze(1)) ** 2).sum(
+        2
+    ) > (min_dist**2)
     curr_ind = 0
 
     for curr_ind in range(len(list_name_frames)):
@@ -86,7 +79,6 @@ class BaseKitti(Dataset):
         pre_transform=None,
         pre_filter=None,
     ):
-
         """
         KITTI Odometry dataset for pair registration
         """
@@ -96,12 +88,18 @@ class BaseKitti(Dataset):
         self.max_time_distance = max_time_distance
         self.min_dist = min_dist
         if mode not in self.dict_seq.keys():
-            raise RuntimeError("this mode {} does " "not exist" "(train|val|test)".format(mode))
+            raise RuntimeError(
+                "this mode {} does not exist(train|val|test)".format(mode)
+            )
         super(BaseKitti, self).__init__(root, transform, pre_transform, pre_filter)
 
     @property
     def raw_file_names(self):
-        return [osp.join("dataset", "poses"), osp.join("dataset", "refined_poses"), osp.join("dataset", "sequences")]
+        return [
+            osp.join("dataset", "poses"),
+            osp.join("dataset", "refined_poses"),
+            osp.join("dataset", "sequences"),
+        ]
 
     @property
     def processed_file_names(self):
@@ -109,7 +107,9 @@ class BaseKitti(Dataset):
         return res
 
     def download(self):
-        log.info("WARNING: You need to first download the kitti dataset (velodyne laser data) on this website")
+        log.info(
+            "WARNING: You need to first download the kitti dataset (velodyne laser data) on this website"
+        )
         log.info("http://www.cvlibs.net/datasets/kitti/eval_odometry.php")
         log.info("you also need to download the refined pose here")
         log.info("https://cloud.mines-paristech.fr/index.php/s/1t1CdXxv4i2v1zC")
@@ -153,23 +153,36 @@ class BaseKitti(Dataset):
         pre transform raw_fragment and save it into fragments
         """
 
-        if files_exist([osp.join(self.processed_dir, mod, "fragment")]):  # pragma: no cover
+        if files_exist(
+            [osp.join(self.processed_dir, mod, "fragment")]
+        ):  # pragma: no cover
             return
 
         in_dir = osp.join(self.raw_dir, "dataset")
         list_drive = self.dict_seq[mod]
 
         for drive in list_drive:
-            out_dir = osp.join(self.processed_dir, mod, "fragment", "{:02d}".format(drive))
+            out_dir = osp.join(
+                self.processed_dir, mod, "fragment", "{:02d}".format(drive)
+            )
             makedirs(out_dir)
-            path_frames = osp.join(in_dir, "sequences", "{:02d}".format(drive), "velodyne")
-            T_calib = read_calib_file(osp.join(in_dir, "sequences", "{:02d}".format(drive), "calib.txt"))
-            all_poses = np.genfromtxt(osp.join(in_dir, "refined_poses", "{:02d}.txt".format(drive)))
-            list_name_frames = sorted([f for f in os.listdir(path_frames) if "bin" in f])
+            path_frames = osp.join(
+                in_dir, "sequences", "{:02d}".format(drive), "velodyne"
+            )
+            T_calib = read_calib_file(
+                osp.join(in_dir, "sequences", "{:02d}".format(drive), "calib.txt")
+            )
+            all_poses = np.genfromtxt(
+                osp.join(in_dir, "refined_poses", "{:02d}.txt".format(drive))
+            )
+            list_name_frames = sorted(
+                [f for f in os.listdir(path_frames) if "bin" in f]
+            )
             for i, name in enumerate(list_name_frames):
-
                 pose = all_poses[i].reshape((3, 4))
-                xyzr = np.fromfile(osp.join(path_frames, name), dtype=np.float32).reshape((-1, 4))
+                xyzr = np.fromfile(
+                    osp.join(path_frames, name), dtype=np.float32
+                ).reshape((-1, 4))
                 xyzr[:, :3] = xyzr[:, :3].dot(T_calib[:3, :3].T) + T_calib[:3, 3]
                 xyzr[:, :3] = xyzr[:, :3].dot(pose[:3, :3].T) + pose[:3, 3]
                 # store position of the car to filter some frames
@@ -192,13 +205,19 @@ class BaseKitti(Dataset):
         ind = 0
         list_drive = self.dict_seq[mod]
         for drive in list_drive:
-            path_fragment = osp.join(self.processed_dir, mod, "fragment", "{:02d}".format(drive))
-            list_name_frames = sorted([f for f in os.listdir(path_fragment) if "pt" in f])
+            path_fragment = osp.join(
+                self.processed_dir, mod, "fragment", "{:02d}".format(drive)
+            )
+            list_name_frames = sorted(
+                [f for f in os.listdir(path_fragment) if "pt" in f]
+            )
 
             # pre_compute specific pair
             log.info("Compute the pairs")
             if self.min_dist is not None:
-                pair_time_frame = compute_spaced_time_frame(list_name_frames, path_fragment, self.min_dist)
+                pair_time_frame = compute_spaced_time_frame(
+                    list_name_frames, path_fragment, self.min_dist
+                )
             else:
                 pair_time_frame = [
                     (i, j)

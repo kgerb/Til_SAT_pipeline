@@ -6,9 +6,7 @@ import logging
 
 from torch_points3d.applications.modelfactory import ModelFactory
 from torch_points3d.modules.RSConv import *
-from torch_points3d.core.base_conv.dense import DenseFPModule
 from torch_points3d.models.base_architectures.unet import UnwrappedUnetBasedModel
-from torch_points3d.datasets.multiscale_data import MultiScaleBatch
 from torch_points3d.core.common_modules.dense_modules import Conv1D
 from torch_points3d.core.common_modules.base_modules import Seq
 from .utils import extract_output_nc
@@ -21,9 +19,14 @@ log = logging.getLogger(__name__)
 
 
 def RSConv(
-    architecture: str = None, input_nc: int = None, num_layers: int = None, config: DictConfig = None, *args, **kwargs
+    architecture: str = None,
+    input_nc: int = None,
+    num_layers: int = None,
+    config: DictConfig = None,
+    *args,
+    **kwargs,
 ):
-    """ Create a RSConv backbone model based on the architecture proposed in
+    """Create a RSConv backbone model based on the architecture proposed in
     https://arxiv.org/abs/1904.07601
 
     Parameters
@@ -40,7 +43,11 @@ def RSConv(
         Custom config, overrides the num_layers and architecture parameters
     """
     factory = RSConvFactory(
-        architecture=architecture, num_layers=num_layers, input_nc=input_nc, config=config, **kwargs
+        architecture=architecture,
+        num_layers=num_layers,
+        input_nc=input_nc,
+        config=config,
+        **kwargs,
     )
     return factory.build()
 
@@ -50,7 +57,9 @@ class RSConvFactory(ModelFactory):
         if self._config:
             model_config = self._config
         else:
-            path_to_model = os.path.join(PATH_TO_CONFIG, "unet_{}.yaml".format(self.num_layers))
+            path_to_model = os.path.join(
+                PATH_TO_CONFIG, "unet_{}.yaml".format(self.num_layers)
+            )
             model_config = OmegaConf.load(path_to_model)
         ModelFactory.resolve_model(model_config, self.num_features, self._kwargs)
         modules_lib = sys.modules[__name__]
@@ -60,7 +69,9 @@ class RSConvFactory(ModelFactory):
         if self._config:
             model_config = self._config
         else:
-            path_to_model = os.path.join(PATH_TO_CONFIG, "encoder_{}.yaml".format(self.num_layers))
+            path_to_model = os.path.join(
+                PATH_TO_CONFIG, "encoder_{}.yaml".format(self.num_layers)
+            )
             model_config = OmegaConf.load(path_to_model)
         ModelFactory.resolve_model(model_config, self.num_features, self._kwargs)
         modules_lib = sys.modules[__name__]
@@ -80,7 +91,9 @@ class RSConvBase(UnwrappedUnetBasedModel):
             self._has_mlp_head = True
             self._output_nc = kwargs["output_nc"]
             self.mlp = Seq()
-            self.mlp.append(Conv1D(default_output_nc, self._output_nc, bn=True, bias=False))
+            self.mlp.append(
+                Conv1D(default_output_nc, self._output_nc, bn=True, bias=False)
+            )
 
     @property
     def has_mlp_head(self):
@@ -116,11 +129,17 @@ class RSConvEncoder(RSConvBase):
             default_output_nc = -1
             log.warning("Could not resolve number of output channels")
         super().__init__(
-            model_config, model_type, dataset, modules, default_output_nc=default_output_nc, *args, **kwargs
+            model_config,
+            model_type,
+            dataset,
+            modules,
+            default_output_nc=default_output_nc,
+            *args,
+            **kwargs,
         )
 
     def forward(self, data, *args, **kwargs):
-        """ This method does a forward on the Unet
+        """This method does a forward on the Unet
 
         Parameters:
         -----------
@@ -158,11 +177,17 @@ class RSConvUnet(RSConvBase):
             default_output_nc = -1
             log.warning("Could not resolve number of output channels")
         super().__init__(
-            model_config, model_type, dataset, modules, default_output_nc=default_output_nc, *args, **kwargs
+            model_config,
+            model_type,
+            dataset,
+            modules,
+            default_output_nc=default_output_nc,
+            *args,
+            **kwargs,
         )
 
     def forward(self, data, *args, **kwargs):
-        """ This method does a forward on the Unet
+        """This method does a forward on the Unet
 
         Parameters:
         -----------
@@ -186,7 +211,9 @@ class RSConvUnet(RSConvBase):
         data = self.down_modules[-1](data)
         queue_up.put(data)
 
-        assert len(self.inner_modules) == 2, "For this segmentation model, we except 2 distinct inner"
+        assert len(self.inner_modules) == 2, (
+            "For this segmentation model, we except 2 distinct inner"
+        )
         data_inner = self.inner_modules[0](data)
         data_inner_2 = self.inner_modules[1](stack_down[3])
 
@@ -195,7 +222,12 @@ class RSConvUnet(RSConvBase):
             queue_up.put(data)
 
         last_feature = torch.cat(
-            [data.x, data_inner.x.repeat(1, 1, data.x.shape[-1]), data_inner_2.x.repeat(1, 1, data.x.shape[-1])], dim=1
+            [
+                data.x,
+                data_inner.x.repeat(1, 1, data.x.shape[-1]),
+                data_inner_2.x.repeat(1, 1, data.x.shape[-1]),
+            ],
+            dim=1,
         )
 
         if self.has_mlp_head:
