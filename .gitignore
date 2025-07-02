@@ -2,3 +2,5 @@ shared*
 DetailView/__*
 DetailView/torch_cache/*
 start_docker_it.sh
+.*
+pyproject.toml
