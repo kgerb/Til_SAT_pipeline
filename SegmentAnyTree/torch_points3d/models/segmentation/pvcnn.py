@@ -29,12 +29,15 @@ class PVCNN(BaseModel):
         self.labels = data.y.to(self.device)
 
     def forward(self, *args, **kwargs):
-        self.output = self.model(self.input)            
+        self.output = self.model(self.input)
         if self._weight_classes is not None:
             self._weight_classes = self._weight_classes.to(self.device)
         if self.labels is not None:
             self.loss_seg = F.cross_entropy(
-                self.output, self.labels, weight=self._weight_classes, ignore_index=IGNORE_LABEL
+                self.output,
+                self.labels,
+                weight=self._weight_classes,
+                ignore_index=IGNORE_LABEL,
             )
 
     def backward(self):

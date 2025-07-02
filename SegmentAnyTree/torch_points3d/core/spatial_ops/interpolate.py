@@ -9,8 +9,7 @@ class KNNInterpolate:
         self.k = k
 
     def precompute(self, query, support):
-        """ Precomputes a data structure that can be used in the transform itself to speed things up
-        """
+        """Precomputes a data structure that can be used in the transform itself to speed things up"""
         pos_x, pos_y = query.pos, support.pos
         if hasattr(support, "batch"):
             batch_y = support.batch
@@ -29,10 +28,16 @@ class KNNInterpolate:
             weights = 1.0 / torch.clamp(squared_distance, min=1e-16)
         normalisation = scatter_add(weights, y_idx, dim=0, dim_size=pos_y.size(0))
 
-        return Data(num_nodes=support.num_nodes, x_idx=x_idx, y_idx=y_idx, weights=weights, normalisation=normalisation)
+        return Data(
+            num_nodes=support.num_nodes,
+            x_idx=x_idx,
+            y_idx=y_idx,
+            weights=weights,
+            normalisation=normalisation,
+        )
 
     def __call__(self, query, support, precomputed: Data = None):
-        """ Computes a new set of features going from the query resolution position to the support
+        """Computes a new set of features going from the query resolution position to the support
         resolution position
         Args:
             - query: data structure that holds the low res data (position + features)
@@ -43,7 +48,9 @@ class KNNInterpolate:
         if precomputed:
             num_points = support.pos.size(0)
             if num_points != precomputed.num_nodes:
-                raise ValueError("Precomputed indices do not match with the data given to the transform")
+                raise ValueError(
+                    "Precomputed indices do not match with the data given to the transform"
+                )
 
             x = query.x
             x_idx, y_idx, weights, normalisation = (

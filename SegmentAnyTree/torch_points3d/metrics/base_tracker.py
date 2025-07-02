@@ -6,7 +6,6 @@ import wandb
 from torch.utils.tensorboard import SummaryWriter
 import logging
 
-from torch_points3d.metrics.confusion_matrix import ConfusionMatrix
 from torch_points3d.models import model_interface
 
 log = logging.getLogger(__name__)
@@ -27,7 +26,9 @@ class BaseTracker:
 
         if self._use_tensorboard:
             log.info(
-                "Access tensorboard with the following command <tensorboard --logdir={}>".format(self._tensorboard_dir)
+                "Access tensorboard with the following command <tensorboard --logdir={}>".format(
+                    self._tensorboard_dir
+                )
             )
             self._writer = SummaryWriter(log_dir=self._tensorboard_dir)
 
@@ -51,12 +52,14 @@ class BaseTracker:
 
     def track(self, model: model_interface.TrackerInterface, **kwargs):
         if self._finalised:
-            raise RuntimeError("Cannot track new values with a finalised tracker, you need to reset it first")
+            raise RuntimeError(
+                "Cannot track new values with a finalised tracker, you need to reset it first"
+            )
         losses = self._convert(model.get_current_losses())
         self._append_losses(losses)
 
     def finalise(self, *args, **kwargs):
-        """ Lifcycle method that is called at the end of an epoch. Use this to compute
+        """Lifcycle method that is called at the end of an epoch. Use this to compute
         end of epoch metrics.
         """
         self._finalised = True
@@ -79,7 +82,9 @@ class BaseTracker:
 
     def publish_to_tensorboard(self, metrics, step):
         for metric_name, metric_value in metrics.items():
-            metric_name = "{}/{}".format(metric_name.replace(self._stage + "_", ""), self._stage)
+            metric_name = "{}/{}".format(
+                metric_name.replace(self._stage + "_", ""), self._stage
+            )
             self._writer.add_scalar(metric_name, metric_value, step)
 
     @staticmethod
@@ -90,7 +95,7 @@ class BaseTracker:
         return new_metrics
 
     def publish(self, step):
-        """ Publishes the current metrics to wandb and tensorboard
+        """Publishes the current metrics to wandb and tensorboard
         Arguments:
             step: current epoch
         """
@@ -105,7 +110,9 @@ class BaseTracker:
         return {
             "stage": self._stage,
             "epoch": step,
-            "current_metrics": self._remove_stage_from_metric_keys(self._stage, metrics),
+            "current_metrics": self._remove_stage_from_metric_keys(
+                self._stage, metrics
+            ),
         }
 
     def print_summary(self):

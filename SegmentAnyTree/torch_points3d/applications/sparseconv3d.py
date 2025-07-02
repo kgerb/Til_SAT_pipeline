@@ -30,7 +30,7 @@ def SparseConv3d(
     config: DictConfig = None,
     backend: str = "minkowski",
     *args,
-    **kwargs
+    **kwargs,
 ):
     """Create a Sparse Conv backbone model based on architecture proposed in
      https://arxiv.org/abs/1904.08755
@@ -56,13 +56,19 @@ def SparseConv3d(
      backend:
          torchsparse or minkowski
     """
-    if "SPARSE_BACKEND" in os.environ and sp3d.nn.backend_valid(os.environ["SPARSE_BACKEND"]):
+    if "SPARSE_BACKEND" in os.environ and sp3d.nn.backend_valid(
+        os.environ["SPARSE_BACKEND"]
+    ):
         sp3d.nn.set_backend(os.environ["SPARSE_BACKEND"])
     else:
         sp3d.nn.set_backend(backend)
-    
+
     factory = SparseConv3dFactory(
-        architecture=architecture, num_layers=num_layers, input_nc=input_nc, config=config, **kwargs
+        architecture=architecture,
+        num_layers=num_layers,
+        input_nc=input_nc,
+        config=config,
+        **kwargs,
     )
     return factory.build()
 
@@ -72,7 +78,9 @@ class SparseConv3dFactory(ModelFactory):
         if self._config:
             model_config = self._config
         else:
-            path_to_model = os.path.join(PATH_TO_CONFIG, "unet_{}.yaml".format(self.num_layers))
+            path_to_model = os.path.join(
+                PATH_TO_CONFIG, "unet_{}.yaml".format(self.num_layers)
+            )
             model_config = OmegaConf.load(path_to_model)
         ModelFactory.resolve_model(model_config, self.num_features, self._kwargs)
         modules_lib = sys.modules[__name__]
@@ -107,7 +115,11 @@ class BaseSparseConv3d(UnwrappedUnetBasedModel):
         if "output_nc" in kwargs:
             self._has_mlp_head = True
             self._output_nc = kwargs["output_nc"]
-            self.mlp = MLP([default_output_nc, self.output_nc], activation=torch.nn.ReLU(), bias=False)
+            self.mlp = MLP(
+                [default_output_nc, self.output_nc],
+                activation=torch.nn.ReLU(),
+                bias=False,
+            )
 
     @property
     def has_mlp_head(self):
@@ -120,7 +132,9 @@ class BaseSparseConv3d(UnwrappedUnetBasedModel):
     def weight_initialization(self):
         for m in self.modules():
             if isinstance(m, sp3d.nn.Conv3d) or isinstance(m, sp3d.nn.Conv3dTranspose):
-                torch.nn.init.kaiming_normal_(m.kernel, mode="fan_out", nonlinearity="relu")
+                torch.nn.init.kaiming_normal_(
+                    m.kernel, mode="fan_out", nonlinearity="relu"
+                )
 
             if isinstance(m, sp3d.nn.BatchNorm):
                 torch.nn.init.constant_(m.bn.weight, 1)
@@ -139,6 +153,7 @@ class BaseSparseConv3d(UnwrappedUnetBasedModel):
             self.xyz = data.pos
         else:
             self.xyz = data.coords
+
 
 class SparseConv3dEncoder(BaseSparseConv3d):
     def forward(self, data, *args, **kwargs):

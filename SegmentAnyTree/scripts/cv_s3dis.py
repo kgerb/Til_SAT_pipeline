@@ -75,7 +75,9 @@ def log_confusion_matrix(conf):
 
 @hydra.main(config_path="../conf/eval.yaml")
 def main(cfg):
-    OmegaConf.set_struct(cfg, False)  # This allows getattr and hasattr methods to function correctly
+    OmegaConf.set_struct(
+        cfg, False
+    )  # This allows getattr and hasattr methods to function correctly
     log.info(cfg.pretty())
     workdir = os.path.join(BASE_DIR, cfg.model_name)
     if not os.path.exists(workdir):
@@ -98,11 +100,15 @@ def main(cfg):
         trainer.eval(stage_name="test")
 
         conf_path = os.path.join(workdir, "{}.npy".format(cfg.model_name))
-        np.save(conf_path, trainer._tracker.full_confusion_matrix.get_confusion_matrix())
+        np.save(
+            conf_path, trainer._tracker.full_confusion_matrix.get_confusion_matrix()
+        )
         del trainer
         conf_paths.append(conf_path)
 
-    confusion_matrix = ConfusionMatrix.create_from_matrix(np.sum([np.load(p) for p in conf_paths], axis=0))
+    confusion_matrix = ConfusionMatrix.create_from_matrix(
+        np.sum([np.load(p) for p in conf_paths], axis=0)
+    )
     log_confusion_matrix(confusion_matrix)
 
 

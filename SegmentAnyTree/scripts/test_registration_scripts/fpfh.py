@@ -22,13 +22,17 @@ class FPFH(object):
         given a fragment, compute FPFH descriptor for keypoints
         """
         self.kdtree = open3d.geometry.KDTreeSearchParamHybrid(radius, max_nn)
-        self.kdtree_normal = open3d.geometry.KDTreeSearchParamHybrid(radius_normal, max_nn_normal)
+        self.kdtree_normal = open3d.geometry.KDTreeSearchParamHybrid(
+            radius_normal, max_nn_normal
+        )
 
     def __call__(self, data):
         pcd = open3d.geometry.PointCloud()
         pcd.points = open3d.utility.Vector3dVector(data.pos.numpy())
         pcd.estimate_normals(self.kdtree_normal)
-        fpfh_feature = open3d.pipelines.registration.compute_fpfh_feature(pcd, self.kdtree)
+        fpfh_feature = open3d.pipelines.registration.compute_fpfh_feature(
+            pcd, self.kdtree
+        )
         return np.asarray(fpfh_feature.data).T[data.keypoints.numpy()]
 
 
@@ -54,7 +58,13 @@ def main(cfg):
         print(i, table[str(i)], list_frag[i])
         data = torch.load(osp.join(input_path, list_frag[i]))
         feat = fpfh(data)
-        save(osp.join(output_path, "features"), table[str(i)]["scene_path"], table[str(i)]["fragment_name"], data, feat)
+        save(
+            osp.join(output_path, "features"),
+            table[str(i)]["scene_path"],
+            table[str(i)]["fragment_name"],
+            data,
+            feat,
+        )
 
 
 if __name__ == "__main__":

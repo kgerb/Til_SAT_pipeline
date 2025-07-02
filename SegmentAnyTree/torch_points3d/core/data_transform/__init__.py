@@ -17,14 +17,18 @@ from omegaconf import OmegaConf
 
 _custom_transforms = sys.modules[__name__]
 _torch_geometric_transforms = sys.modules["torch_geometric.transforms"]
-_intersection_names = set(_custom_transforms.__dict__) & set(_torch_geometric_transforms.__dict__)
-_intersection_names = set([module for module in _intersection_names if not module.startswith("_")])
+_intersection_names = set(_custom_transforms.__dict__) & set(
+    _torch_geometric_transforms.__dict__
+)
+_intersection_names = set(
+    [module for module in _intersection_names if not module.startswith("_")]
+)
 L_intersection_names = len(_intersection_names) > 0
 _intersection_cls = []
 
 for transform_name in _intersection_names:
     transform_cls = getattr(_custom_transforms, transform_name)
-    if not "torch_geometric.transforms." in str(transform_cls):
+    if "torch_geometric.transforms." not in str(transform_cls):
         _intersection_cls.append(transform_cls)
 L_intersection_cls = len(_intersection_cls) > 0
 
@@ -46,7 +50,7 @@ if L_intersection_names:
 
 
 def instantiate_transform(transform_option, attr="transform"):
-    """ Creates a transform from an OmegaConf dict such as
+    """Creates a transform from an OmegaConf dict such as
     transform: GridSampling3D
         params:
             size: 0.01
@@ -54,12 +58,12 @@ def instantiate_transform(transform_option, attr="transform"):
     tr_name = getattr(transform_option, attr, None)
     try:
         # tr_params = transform_option.params
-        tr_params = transform_option.get('params')  # Update to OmegaConf 2.0
+        tr_params = transform_option.get("params")  # Update to OmegaConf 2.0
     except KeyError:
         tr_params = None
     try:
         # lparams = transform_option.lparams
-        lparams = transform_option.get('lparams') # Update to OmegaConf 2.0
+        lparams = transform_option.get("lparams")  # Update to OmegaConf 2.0
     except KeyError:
         lparams = None
 
@@ -82,7 +86,7 @@ def instantiate_transform(transform_option, attr="transform"):
 
 
 def instantiate_transforms(transform_options):
-    """ Creates a torch_geometric composite transform from an OmegaConf list such as
+    """Creates a torch_geometric composite transform from an OmegaConf list such as
     - transform: GridSampling3D
         params:
             size: 0.01
@@ -115,7 +119,6 @@ class LotteryTransform(object):
         self.random_transforms = instantiate_transforms(transform_options)
 
     def __call__(self, data):
-
         list_transforms = self.random_transforms.transforms
         i = np.random.randint(len(list_transforms))
         transform = list_transforms[i]
@@ -150,6 +153,7 @@ class ComposeTransform(object):
     transform_options: Omegaconf Dict
         contains a list of transform
     """
+
     def __init__(self, transform_options):
         self.transform = instantiate_transforms(transform_options)
 
@@ -245,4 +249,6 @@ class RandomParamTransform(object):
         return self.random_transform(data)
 
     def __repr__(self):
-        return "RandomParamTransform({}, params={})".format(self.transform_name, self.transform_params)
+        return "RandomParamTransform({}, params={})".format(
+            self.transform_name, self.transform_params
+        )

@@ -22,7 +22,9 @@ from torch_points3d.datasets.panoptic.scannet import ScannetDataset
 from torch_points3d.utils.o3d_utils import *
 
 
-dataset_options = OmegaConf.load(os.path.join(DIR, "../../conf/data/panoptic/scannet-sparse.yaml"))
+dataset_options = OmegaConf.load(
+    os.path.join(DIR, "../../conf/data/panoptic/scannet-sparse.yaml")
+)
 
 dataset_options.data.dataroot = os.path.join(DIR, "../../data")
 dataset = ScannetDataset(dataset_options.data)
@@ -35,14 +37,18 @@ while True:
         i = np.random.randint(0, len(dataset.train_dataset))
         sample = dataset.train_dataset[i]
         pcd = torch2o3d(sample)
-        pcd.estimate_normals(search_param=open3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=70))
+        pcd.estimate_normals(
+            search_param=open3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=70)
+        )
         list_objects = []
         existing_colors = []
         mask = sample.instance_mask
         scene = apply_mask(sample, torch.logical_not(mask))
         scene_pcd = torch2o3d(scene, color=[0.8, 0.8, 0.8])
 
-        scene_pcd.estimate_normals(search_param=open3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=70))
+        scene_pcd.estimate_normals(
+            search_param=open3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=70)
+        )
         scene_pcd = scene_pcd.voxel_down_sample(0.07)
 
         for i in range(1, sample.num_instances.item() + 1):
@@ -51,7 +57,11 @@ while True:
             new_color = generate_new_color(existing_colors)
             pcd = torch2o3d(obj, color=new_color)
             existing_colors.append(new_color)
-            pcd.estimate_normals(search_param=open3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=70))
+            pcd.estimate_normals(
+                search_param=open3d.geometry.KDTreeSearchParamHybrid(
+                    radius=0.1, max_nn=70
+                )
+            )
             list_objects.append(pcd)
 
         print()

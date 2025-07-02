@@ -1,5 +1,3 @@
-import torchsparse
-import torchsparse.nn as spnn
 import torchsparse.nn.functional as spf
 from torchsparse.sparse_tensor import SparseTensor
 from torchsparse.point_tensor import PointTensor
@@ -13,7 +11,9 @@ __all__ = ["initial_voxelize", "point_to_voxel", "voxel_to_point"]
 # z: PointTensor
 # return: SparseTensor
 def initial_voxelize(z, init_res, after_res):
-    new_float_coord = torch.cat([(z.C[:, :3] * init_res) / after_res, z.C[:, -1].view(-1, 1)], 1)
+    new_float_coord = torch.cat(
+        [(z.C[:, :3] * init_res) / after_res, z.C[:, -1].view(-1, 1)], 1
+    )
 
     pc_hash = spf.sphash(torch.floor(new_float_coord).int())
     sparse_hash = torch.unique(pc_hash)
@@ -42,7 +42,15 @@ def point_to_voxel(x, z):
         or z.additional_features["idx_query"].get(x.s) is None
     ):
         # pc_hash = hash_gpu(torch.floor(z.C).int())
-        pc_hash = spf.sphash(torch.cat([torch.floor(z.C[:, :3] / x.s).int() * x.s, z.C[:, -1].int().view(-1, 1)], 1))
+        pc_hash = spf.sphash(
+            torch.cat(
+                [
+                    torch.floor(z.C[:, :3] / x.s).int() * x.s,
+                    z.C[:, -1].int().view(-1, 1),
+                ],
+                1,
+            )
+        )
         sparse_hash = spf.sphash(x.C)
         idx_query = spf.sphashquery(pc_hash, sparse_hash)
         counts = spf.spcount(idx_query.int(), x.C.shape[0])
@@ -63,22 +71,38 @@ def point_to_voxel(x, z):
 # x: SparseTensor, z: PointTensor
 # return: PointTensor
 def voxel_to_point(x, z, nearest=False):
-    if z.idx_query is None or z.weights is None or z.idx_query.get(x.s) is None or z.weights.get(x.s) is None:
+    if (
+        z.idx_query is None
+        or z.weights is None
+        or z.idx_query.get(x.s) is None
+        or z.weights.get(x.s) is None
+    ):
         kr = KernelRegion(2, x.s, 1)
         off = kr.get_kernel_offset().to(z.F.device)
         # old_hash = kernel_hash_gpu(torch.floor(z.C).int(), off)
         old_hash = spf.sphash(
-            torch.cat([torch.floor(z.C[:, :3] / x.s).int() * x.s, z.C[:, -1].int().view(-1, 1)], 1), off
+            torch.cat(
+                [
+                    torch.floor(z.C[:, :3] / x.s).int() * x.s,
+                    z.C[:, -1].int().view(-1, 1),
+                ],
+                1,
+            ),
+            off,
         )
         pc_hash = spf.sphash(x.C.to(z.F.device))
         idx_query = spf.sphashquery(old_hash, pc_hash)
-        weights = spf.calc_ti_weights(z.C, idx_query, scale=x.s).transpose(0, 1).contiguous()
+        weights = (
+            spf.calc_ti_weights(z.C, idx_query, scale=x.s).transpose(0, 1).contiguous()
+        )
         idx_query = idx_query.transpose(0, 1).contiguous()
         if nearest:
             weights[:, 1:] = 0.0
             idx_query[:, 1:] = -1
         new_feat = spf.spdevoxelize(x.F, idx_query, weights)
-        new_tensor = PointTensor(new_feat, z.C, idx_query=z.idx_query, weights=z.weights)
+        new_tensor = PointTensor(
+            new_feat, z.C, idx_query=z.idx_query, weights=z.weights
+        )
         new_tensor.additional_features = z.additional_features
         new_tensor.idx_query[x.s] = idx_query
         new_tensor.weights[x.s] = weights
@@ -87,7 +111,9 @@ def voxel_to_point(x, z, nearest=False):
 
     else:
         new_feat = spf.spdevoxelize(x.F, z.idx_query.get(x.s), z.weights.get(x.s))
-        new_tensor = PointTensor(new_feat, z.C, idx_query=z.idx_query, weights=z.weights)
+        new_tensor = PointTensor(
+            new_feat, z.C, idx_query=z.idx_query, weights=z.weights
+        )
         new_tensor.additional_features = z.additional_features
 
     return new_tensor

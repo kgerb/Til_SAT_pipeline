@@ -1,11 +1,9 @@
 import os
 import logging
 import urllib.request
-from omegaconf import DictConfig
 
 # Import building function for model and dataset
 from torch_points3d.datasets.dataset_factory import instantiate_dataset
-from torch_points3d.models.model_factory import instantiate_model
 
 # Import BaseModel / BaseDataset for type checking
 from torch_points3d.models.base_model import BaseModel
@@ -30,7 +28,6 @@ def download_file(url, out_file):
 
 
 class PretainedRegistry(object):
-
     MODELS = {
         "pointnet2_largemsg-s3dis-1": "https://api.wandb.ai/files/loicland/benchmark-torch-points-3d-s3dis/1e1p0csk/pointnet2_largemsg.pt",
         "pointnet2_largemsg-s3dis-2": "https://api.wandb.ai/files/loicland/benchmark-torch-points-3d-s3dis/2i499g2e/pointnet2_largemsg.pt",
@@ -94,7 +91,9 @@ class PretainedRegistry(object):
     }
 
     @staticmethod
-    def from_pretrained(model_tag, download=True, out_file=None, weight_name="latest", mock_dataset=True):
+    def from_pretrained(
+        model_tag, download=True, out_file=None, weight_name="latest", mock_dataset=True
+    ):
         # Convert inputs to registry format
 
         if PretainedRegistry.MODELS.get(model_tag) is not None:
@@ -115,12 +114,17 @@ class PretainedRegistry(object):
             weight_name = weight_name if weight_name is not None else "latest"
 
             checkpoint: ModelCheckpoint = ModelCheckpoint(
-                CHECKPOINT_DIR, model_tag, weight_name if weight_name is not None else "latest", resume=False,
+                CHECKPOINT_DIR,
+                model_tag,
+                weight_name if weight_name is not None else "latest",
+                resume=False,
             )
             if mock_dataset:
                 dataset = checkpoint.dataset_properties.copy()
                 if PretainedRegistry.MOCK_USED_PROPERTIES.get(model_tag) is not None:
-                    for k, v in PretainedRegistry.MOCK_USED_PROPERTIES.get(model_tag).items():
+                    for k, v in PretainedRegistry.MOCK_USED_PROPERTIES.get(
+                        model_tag
+                    ).items():
                         dataset[k] = v
 
             else:
@@ -154,7 +158,10 @@ class PretainedRegistry(object):
         name = name.split(".")[0]  # ModelCheckpoint will add the extension
 
         checkpoint: ModelCheckpoint = ModelCheckpoint(
-            path_dir, name, weight_name if weight_name is not None else "latest", resume=False,
+            path_dir,
+            name,
+            weight_name if weight_name is not None else "latest",
+            resume=False,
         )
         dataset = checkpoint.data_config
 

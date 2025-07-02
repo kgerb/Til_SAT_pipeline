@@ -17,9 +17,9 @@ log = logging.getLogger(__name__)
 
 class SemanticKitti(Dataset):
     r"""SemanticKITTI: A Dataset for Semantic Scene Understanding of LiDAR Sequences"
-    from the <https://arxiv.org/pdf/1904.01416.pdf> paper, 
+    from the <https://arxiv.org/pdf/1904.01416.pdf> paper,
     containing about 21 lidar scan sequences with dense point-wise annotations.
-    
+
     root dir should be structured as
     rootdir
         └── sequences/
@@ -58,8 +58,17 @@ class SemanticKitti(Dataset):
     SPLIT = SPLIT
     AVAILABLE_SPLITS = ["train", "val", "test", "trainval"]
 
-    def __init__(self, root, split="trainval", transform=None, process_workers=1, pre_transform=None):
-        assert self.REMAPPING_MAP[0] == IGNORE_LABEL  # Make sure we have the same convention for unlabelled data
+    def __init__(
+        self,
+        root,
+        split="trainval",
+        transform=None,
+        process_workers=1,
+        pre_transform=None,
+    ):
+        assert (
+            self.REMAPPING_MAP[0] == IGNORE_LABEL
+        )  # Make sure we have the same convention for unlabelled data
         self.use_multiprocessing = process_workers > 1
         self.process_workers = process_workers
 
@@ -90,23 +99,48 @@ class SemanticKitti(Dataset):
         label_path = []
         for seq in seqs:
             scan_paths.extend(
-                sorted(glob(os.path.join(self.raw_paths[0], "{0:02d}".format(int(seq)), "velodyne", "*.bin")))
+                sorted(
+                    glob(
+                        os.path.join(
+                            self.raw_paths[0],
+                            "{0:02d}".format(int(seq)),
+                            "velodyne",
+                            "*.bin",
+                        )
+                    )
+                )
             )
             label_path.extend(
-                sorted(glob(os.path.join(self.raw_paths[0], "{0:02d}".format(int(seq)), "labels", "*.label")))
+                sorted(
+                    glob(
+                        os.path.join(
+                            self.raw_paths[0],
+                            "{0:02d}".format(int(seq)),
+                            "labels",
+                            "*.label",
+                        )
+                    )
+                )
             )
 
         if len(label_path) == 0:
             label_path = [None for i in range(len(scan_paths))]
         if len(label_path) > 0 and len(scan_paths) != len(label_path):
-            raise ValueError((f"number of scans {len(scan_paths)} not equal to number of labels {len(label_path)}"))
+            raise ValueError(
+                (
+                    f"number of scans {len(scan_paths)} not equal to number of labels {len(label_path)}"
+                )
+            )
 
         return scan_paths, label_path
 
     @staticmethod
     def read_raw(scan_file, label_file=None):
         scan = np.fromfile(scan_file, dtype=np.float32).reshape(-1, 4)
-        data = Data(pos=torch.tensor(scan[:, :3]), x=torch.tensor(scan[:, 3]).reshape(-1, 1),)
+        data = Data(
+            pos=torch.tensor(scan[:, :3]),
+            x=torch.tensor(scan[:, 3]).reshape(-1, 1),
+        )
         if label_file:
             label = np.fromfile(label_file, dtype=np.uint32).astype(np.int32)
             assert scan.shape[0] == label.shape[0]
@@ -121,7 +155,11 @@ class SemanticKitti(Dataset):
         data = SemanticKitti.read_raw(scan_file, label_file)
         if transform:
             data = transform(data)
-        log.info("Processed file %s, nb points = %i", os.path.basename(out_file), data.pos.shape[0])
+        log.info(
+            "Processed file %s, nb points = %i",
+            os.path.basename(out_file),
+            data.pos.shape[0],
+        )
         torch.save(data, out_file)
 
     def get(self, idx):
@@ -144,8 +182,16 @@ class SemanticKitti(Dataset):
                 seq, _, scan_id = scan.split(os.path.sep)[-3:]
                 scan_names.append("{}_{}".format(seq, scan_id))
 
-            out_files = [os.path.join(self.processed_paths[i], "{}.pt".format(scan_name)) for scan_name in scan_names]
-            args = zip(scan_paths, label_paths, [self.pre_transform for i in range(len(scan_paths))], out_files)
+            out_files = [
+                os.path.join(self.processed_paths[i], "{}.pt".format(scan_name))
+                for scan_name in scan_names
+            ]
+            args = zip(
+                scan_paths,
+                label_paths,
+                [self.pre_transform for i in range(len(scan_paths))],
+                out_files,
+            )
             if self.use_multiprocessing:
                 with multiprocessing.Pool(processes=self.process_workers) as pool:
                     pool.starmap(self.process_one, args)
@@ -159,7 +205,9 @@ class SemanticKitti(Dataset):
     def download(self):
         if len(os.listdir(self.raw_dir)) == 0:
             url = "http://semantic-kitti.org/"
-            print(f"please download the dataset from {url} with the following folder structure")
+            print(
+                f"please download the dataset from {url} with the following folder structure"
+            )
             print(
                 """
                     rootdir
@@ -182,8 +230,7 @@ class SemanticKitti(Dataset):
             )
 
     def _remap_labels(self, semantic_label):
-        """ Remaps labels to [0 ; num_labels -1]. Can be overriden.
-        """
+        """Remaps labels to [0 ; num_labels -1]. Can be overriden."""
         new_labels = semantic_label.clone()
         for source, target in self.REMAPPING_MAP.items():
             mask = semantic_label == source
@@ -197,7 +244,7 @@ class SemanticKitti(Dataset):
 
 
 class SemanticKittiDataset(BaseDataset):
-    """ Wrapper around Semantic Kitti that creates train and test datasets.
+    """Wrapper around Semantic Kitti that creates train and test datasets.
     Parameters
     ----------
     dataset_opt: omegaconf.DictConfig
@@ -211,7 +258,9 @@ class SemanticKittiDataset(BaseDataset):
 
     def __init__(self, dataset_opt):
         super().__init__(dataset_opt)
-        process_workers: int = dataset_opt.process_workers if dataset_opt.process_workers else 0
+        process_workers: int = (
+            dataset_opt.process_workers if dataset_opt.process_workers else 0
+        )
         self.train_dataset = SemanticKitti(
             self._data_path,
             split="train",
@@ -244,13 +293,16 @@ class SemanticKittiDataset(BaseDataset):
         Returns:
             [BaseTracker] -- tracker
         """
-        return SegmentationTracker(self, wandb_log=wandb_log, use_tensorboard=tensorboard_log)
+        return SegmentationTracker(
+            self, wandb_log=wandb_log, use_tensorboard=tensorboard_log
+        )
 
 
 if __name__ == "__main__":
     DIR = os.path.dirname(os.path.realpath(__file__))
     dataroot = os.path.join(DIR, "..", "..", "data", "kitti")
     SemanticKitti(
-        dataroot, split="train", process_workers=10,
+        dataroot,
+        split="train",
+        process_workers=10,
     )
-

@@ -83,12 +83,20 @@ class Visualizer(object):
                 if self._deterministic:
                     if stage not in self._indices:
                         if self._num_samples_per_epoch > total_items:
-                            log.warn("Number of samples to save is higher than the number of available elements")
-                        self._indices[stage] = np.random.permutation(total_items)[: self._num_samples_per_epoch]
+                            log.warn(
+                                "Number of samples to save is higher than the number of available elements"
+                            )
+                        self._indices[stage] = np.random.permutation(total_items)[
+                            : self._num_samples_per_epoch
+                        ]
                 else:
                     if self._num_samples_per_epoch > total_items:
-                        log.warn("Number of samples to save is higher than the number of available elements")
-                    self._indices[stage] = np.random.permutation(total_items)[: self._num_samples_per_epoch]
+                        log.warn(
+                            "Number of samples to save is higher than the number of available elements"
+                        )
+                    self._indices[stage] = np.random.permutation(total_items)[
+                        : self._num_samples_per_epoch
+                    ]
 
     @property
     def is_active(self):
@@ -96,7 +104,7 @@ class Visualizer(object):
 
     def reset(self, epoch, stage):
         """This function is responsible to restore the visualizer
-            to start a new epoch on a new stage
+        to start a new epoch on a new stage
         """
         self._current_epoch = epoch
         self._seen_batch = 0
@@ -115,9 +123,9 @@ class Visualizer(object):
         return out_data
 
     def _extract_from_dense(self, item, pos_idx):
-        assert (
-            item.y.shape[0] == item.pos.shape[0]
-        ), "y and pos should have the same number of samples. Something is probably wrong with your data to visualise"
+        assert item.y.shape[0] == item.pos.shape[0], (
+            "y and pos should have the same number of samples. Something is probably wrong with your data to visualise"
+        )
         num_samples = item.y.shape[0]
         out_data = {}
         for k in item.keys:
@@ -144,9 +152,9 @@ class Visualizer(object):
 
     def save_visuals(self, visuals):
         """This function is responsible to save the data into .ply objects
-            Parameters:
-                visuals (Dict[Data(pos=torch.Tensor, ...)]) -- Contains a dictionnary of tensors
-            Make sure the saved_keys  within the config maps to the Data attributes.
+        Parameters:
+            visuals (Dict[Data(pos=torch.Tensor, ...)]) -- Contains a dictionnary of tensors
+        Make sure the saved_keys  within the config maps to the Data attributes.
         """
         if self._stage in self._indices:
             batch_indices = self._indices[self._stage] // self._batch_size
@@ -154,13 +162,17 @@ class Visualizer(object):
             for idx in np.argwhere(self._seen_batch == batch_indices).flatten():
                 pos_idx = pos_indices[idx]
                 for visual_name, item in visuals.items():
-                    if hasattr(item, "batch") and item.batch is not None:  # The PYG dataloader has been used
+                    if (
+                        hasattr(item, "batch") and item.batch is not None
+                    ):  # The PYG dataloader has been used
                         out_item = self._extract_from_PYG(item, pos_idx)
                     else:
                         out_item = self._extract_from_dense(item, pos_idx)
                     out_item = self._dict_to_structured_npy(out_item)
 
-                    dir_path = os.path.join(self._viz_path, str(self._current_epoch), self._stage)
+                    dir_path = os.path.join(
+                        self._viz_path, str(self._current_epoch), self._stage
+                    )
                     if not os.path.exists(dir_path):
                         os.makedirs(dir_path)
 

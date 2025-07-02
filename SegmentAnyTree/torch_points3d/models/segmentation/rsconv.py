@@ -28,7 +28,10 @@ class RSConvLogicModel(UnwrappedUnetBasedModel):
                     "The dataset needs to specify a class_to_segments property when using category information for segmentation"
                 )
             self._num_categories = len(dataset.class_to_segments.keys())
-            log.info("Using category information for the predictions with %i categories", self._num_categories)
+            log.info(
+                "Using category information for the predictions with %i categories",
+                self._num_categories,
+            )
         else:
             self._num_categories = 0
 
@@ -38,11 +41,21 @@ class RSConvLogicModel(UnwrappedUnetBasedModel):
         self.FC_layer = Seq()
         last_mlp_opt.nn[0] += self._num_categories
         for i in range(1, len(last_mlp_opt.nn)):
-            self.FC_layer.append(Conv1D(last_mlp_opt.nn[i - 1], last_mlp_opt.nn[i], bn=True, bias=False))
+            self.FC_layer.append(
+                Conv1D(last_mlp_opt.nn[i - 1], last_mlp_opt.nn[i], bn=True, bias=False)
+            )
         if last_mlp_opt.dropout:
             self.FC_layer.append(torch.nn.Dropout(p=last_mlp_opt.dropout))
 
-        self.FC_layer.append(Conv1D(last_mlp_opt.nn[-1], self._num_classes, activation=None, bias=True, bn=False))
+        self.FC_layer.append(
+            Conv1D(
+                last_mlp_opt.nn[-1],
+                self._num_classes,
+                activation=None,
+                bias=True,
+                bn=False,
+            )
+        )
         self.loss_names = ["loss_seg"]
 
         self.visual_names = ["data_visual"]
@@ -64,16 +77,21 @@ class RSConvLogicModel(UnwrappedUnetBasedModel):
             self.labels = torch.flatten(data.y).long()  # [B,N]
         else:
             self.labels = data.y
-        self.batch_idx = torch.arange(0, data.pos.shape[0]).view(-1, 1).repeat(1, data.pos.shape[1]).view(-1)
+        self.batch_idx = (
+            torch.arange(0, data.pos.shape[0])
+            .view(-1, 1)
+            .repeat(1, data.pos.shape[1])
+            .view(-1)
+        )
         if self._use_category:
             self.category = data.category
 
     def forward(self, *args, **kwargs):
         r"""
-            Forward pass of the network
-            self.data:
-                x -- Features [B, C, N]
-                pos -- Features [B, N, 3]
+        Forward pass of the network
+        self.data:
+            x -- Features [B, C, N]
+            pos -- Features [B, N, 3]
         """
         stack_down = []
         queue_up = queue.Queue()
@@ -88,7 +106,9 @@ class RSConvLogicModel(UnwrappedUnetBasedModel):
         data = self.down_modules[-1](data)
         queue_up.put(data)
 
-        assert len(self.inner_modules) == 2, "For this segmentation model, we except 2 distinct inner"
+        assert len(self.inner_modules) == 2, (
+            "For this segmentation model, we except 2 distinct inner"
+        )
         data_inner = self.inner_modules[0](data)
         data_inner_2 = self.inner_modules[1](stack_down[3])
 
@@ -97,26 +117,43 @@ class RSConvLogicModel(UnwrappedUnetBasedModel):
             queue_up.put(data)
 
         last_feature = torch.cat(
-            [data.x, data_inner.x.repeat(1, 1, data.x.shape[-1]), data_inner_2.x.repeat(1, 1, data.x.shape[-1])], dim=1
+            [
+                data.x,
+                data_inner.x.repeat(1, 1, data.x.shape[-1]),
+                data_inner_2.x.repeat(1, 1, data.x.shape[-1]),
+            ],
+            dim=1,
         )
 
         if self._use_category:
-            cat_one_hot = F.one_hot(self.category, self._num_categories).float().transpose(1, 2)
+            cat_one_hot = (
+                F.one_hot(self.category, self._num_categories).float().transpose(1, 2)
+            )
             last_feature = torch.cat((last_feature, cat_one_hot), dim=1)
 
-        self.output = self.FC_layer(last_feature).transpose(1, 2).contiguous().view((-1, self._num_classes))
+        self.output = (
+            self.FC_layer(last_feature)
+            .transpose(1, 2)
+            .contiguous()
+            .view((-1, self._num_classes))
+        )
 
         # Compute loss
         if self._weight_classes is not None:
             self._weight_classes = self._weight_classes.to(self.output.device)
         if self.labels is not None:
             self.loss_seg = F.cross_entropy(
-                self.output, self.labels, weight=self._weight_classes, ignore_index=IGNORE_LABEL
+                self.output,
+                self.labels,
+                weight=self._weight_classes,
+                ignore_index=IGNORE_LABEL,
             )
 
         self.data_visual = self.input
         self.data_visual.y = torch.reshape(self.labels, data.pos.shape[0:2])
-        self.data_visual.pred = torch.max(self.output, -1)[1].reshape(data.pos.shape[0:2])
+        self.data_visual.pred = torch.max(self.output, -1)[1].reshape(
+            data.pos.shape[0:2]
+        )
 
         return self.output
 
@@ -128,4 +165,4 @@ class RSConvLogicModel(UnwrappedUnetBasedModel):
 
 
 class RSConv_MP(Segmentation_MP):
-    """ Message passing version of RSConv"""
+    """Message passing version of RSConv"""

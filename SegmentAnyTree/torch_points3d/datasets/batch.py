@@ -3,7 +3,7 @@ from torch_geometric.data import Data
 
 
 class SimpleBatch(Data):
-    r""" A classic batch object wrapper with :class:`torch_geometric.data.Data` being the
+    r"""A classic batch object wrapper with :class:`torch_geometric.data.Data` being the
     base class, all its methods can also be used here.
     """
 
@@ -16,7 +16,7 @@ class SimpleBatch(Data):
     @staticmethod
     def from_data_list(data_list):
         r"""Constructs a batch object from a python list holding
-        :class:`torch_geometric.data.Data` objects. 
+        :class:`torch_geometric.data.Data` objects.
         """
         keys = [set(data.keys) for data in data_list]
         keys = list(set.union(*keys))

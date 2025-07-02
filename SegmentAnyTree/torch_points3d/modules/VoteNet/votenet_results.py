@@ -21,7 +21,7 @@ class VoteNetResults(Data):
         num_heading_bin: int,
         mean_size_arr: torch.Tensor,
     ):
-        """ Takes the sampled votes and the output features from the proposal network to generate a structured data object with
+        """Takes the sampled votes and the output features from the proposal network to generate a structured data object with
         all necessary info for loss and metric computations
 
         Parameters
@@ -62,9 +62,17 @@ class VoteNetResults(Data):
         """
         num_size_cluster = len(mean_size_arr)
         assert features.dim() == 3
-        assert features.shape[1] == 2 + 3 + num_heading_bin * 2 + num_size_cluster * 4 + num_classes
+        assert (
+            features.shape[1]
+            == 2 + 3 + num_heading_bin * 2 + num_size_cluster * 4 + num_classes
+        )
 
-        data = cls(sampled_votes=sampled_votes, seed_inds=seed_inds, seed_votes=seed_votes, seed_pos=seed_pos)
+        data = cls(
+            sampled_votes=sampled_votes,
+            seed_inds=seed_inds,
+            seed_votes=seed_votes,
+            seed_pos=seed_pos,
+        )
         data.has_class = num_classes != 0
 
         x_transposed = features.transpose(2, 1)  # (batch_size, num_proposal, features)
@@ -79,25 +87,33 @@ class VoteNetResults(Data):
         data.center = center
 
         heading_scores = x_transposed[:, :, 5 : 5 + num_heading_bin]
-        heading_residuals_normalized = x_transposed[:, :, 5 + num_heading_bin : 5 + num_heading_bin * 2]
+        heading_residuals_normalized = x_transposed[
+            :, :, 5 + num_heading_bin : 5 + num_heading_bin * 2
+        ]
         data.heading_scores = heading_scores  # Bxnum_proposalxnum_heading_bin
-        data.heading_residuals_normalized = (
-            heading_residuals_normalized  # Bxnum_proposalxnum_heading_bin (should be -1 to 1) TODO check that!
-        )
+        data.heading_residuals_normalized = heading_residuals_normalized  # Bxnum_proposalxnum_heading_bin (should be -1 to 1) TODO check that!
         data.heading_residuals = heading_residuals_normalized * (
             np.pi / num_heading_bin
         )  # Bxnum_proposalxnum_heading_bin
 
-        size_scores = x_transposed[:, :, 5 + num_heading_bin * 2 : 5 + num_heading_bin * 2 + num_size_cluster]
+        size_scores = x_transposed[
+            :, :, 5 + num_heading_bin * 2 : 5 + num_heading_bin * 2 + num_size_cluster
+        ]
         size_residuals_normalized = x_transposed[
-            :, :, 5 + num_heading_bin * 2 + num_size_cluster : 5 + num_heading_bin * 2 + num_size_cluster * 4
+            :,
+            :,
+            5 + num_heading_bin * 2 + num_size_cluster : 5
+            + num_heading_bin * 2
+            + num_size_cluster * 4,
         ].view(
             [batch_size, num_proposal, num_size_cluster, 3]
         )  # Bxnum_proposalxnum_size_clusterx3
         data.size_scores = size_scores
         data.size_residuals_normalized = size_residuals_normalized
         if len(mean_size_arr) > 0:
-            data.size_residuals = size_residuals_normalized * mean_size_arr.unsqueeze(0).unsqueeze(0)
+            data.size_residuals = size_residuals_normalized * mean_size_arr.unsqueeze(
+                0
+            ).unsqueeze(0)
 
         if num_classes:
             data.sem_cls_scores = x_transposed[
@@ -109,9 +125,13 @@ class VoteNetResults(Data):
         return data
 
     def assign_objects(
-        self, gt_center: torch.Tensor, gt_object_mask: torch.Tensor, near_threshold: float, far_threshold: float
+        self,
+        gt_center: torch.Tensor,
+        gt_object_mask: torch.Tensor,
+        near_threshold: float,
+        far_threshold: float,
     ):
-        """ Assigns an object to each prediction based on the closest ground truth
+        """Assigns an object to each prediction based on the closest ground truth
         objectness_label: 1 if pred object center is within NEAR_THRESHOLD of any GT object
         objectness_mask: 0 if pred object center is in gray zone (DONOTCARE), 1 otherwise
         object_assignment: Tensor with long int within [0,num_gt_object-1]
@@ -134,7 +154,9 @@ class VoteNetResults(Data):
 
         euclidean_dist1 = torch.sqrt(dist1 + 1e-6)
         gt_mask = torch.gather(gt_object_mask, 1, ind1)
-        self.objectness_label = torch.zeros((B, K), dtype=torch.long).to(self.sampled_votes.device)
+        self.objectness_label = torch.zeros((B, K), dtype=torch.long).to(
+            self.sampled_votes.device
+        )
         self.objectness_mask = torch.zeros((B, K)).to(self.sampled_votes.device)
         self.objectness_label[euclidean_dist1 < near_threshold] = 1
         self.objectness_label *= gt_mask
@@ -155,7 +177,7 @@ class VoteNetResults(Data):
     def get_boxes(
         self, dataset, apply_nms=False, objectness_threshold=0.05, duplicate_boxes=False
     ) -> List[List[BoxData]]:
-        """ Generates boxes from predictions
+        """Generates boxes from predictions
 
         Parameters
         ----------
@@ -180,22 +202,30 @@ class VoteNetResults(Data):
         )  # B,num_proposal,1
         pred_size_class = torch.argmax(self.size_scores, -1)  # B,num_proposal
         pred_size_residual = torch.gather(
-            self.size_residuals, 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 1, 3)
-        ).squeeze(
-            2
-        )  # B,num_proposal,3
+            self.size_residuals,
+            2,
+            pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 1, 3),
+        ).squeeze(2)  # B,num_proposal,3
 
         # Generate box corners
         pred_corners_3d = torch.zeros((self.batch_size, self.num_proposal, 8, 3))
         for i in range(self.batch_size):
             for j in range(self.num_proposal):
-                heading_angle = dataset.class2angle(pred_heading_class[i, j], pred_heading_residual[i, j])
-                box_size = dataset.class2size(pred_size_class[i, j], pred_size_residual[i, j])
-                corners_3d = box_corners_from_param(box_size, heading_angle, self.center[i, j, :].cpu())
+                heading_angle = dataset.class2angle(
+                    pred_heading_class[i, j], pred_heading_residual[i, j]
+                )
+                box_size = dataset.class2size(
+                    pred_size_class[i, j], pred_size_residual[i, j]
+                )
+                corners_3d = box_corners_from_param(
+                    box_size, heading_angle, self.center[i, j, :].cpu()
+                )
                 pred_corners_3d[i, j] = corners_3d
 
         # Objectness and class
-        pred_obj = torch.nn.functional.softmax(self.objectness_scores, -1)[:, :, 1]  # B,num_proposal
+        pred_obj = torch.nn.functional.softmax(self.objectness_scores, -1)[
+            :, :, 1
+        ]  # B,num_proposal
         pred_sem_cls = torch.argmax(self.sem_cls_scores, -1)  # B,num_proposal
         sem_cls_proba = torch.softmax(self.sem_cls_scores, -1)
 
@@ -219,10 +249,16 @@ class VoteNetResults(Data):
                     if duplicate_boxes and self.has_class:
                         for classname in range(sem_cls_proba.shape[-1]):
                             batch_detection.append(
-                                BoxData(classname, corners[j], score=objectness[j] * sem_cls_scores[j, classname])
+                                BoxData(
+                                    classname,
+                                    corners[j],
+                                    score=objectness[j] * sem_cls_scores[j, classname],
+                                )
                             )
                     else:
-                        batch_detection.append(BoxData(clsname[j], corners[j], score=objectness[j]))
+                        batch_detection.append(
+                            BoxData(clsname[j], corners[j], score=objectness[j])
+                        )
 
             detected_boxes.append(batch_detection)
 
@@ -239,7 +275,9 @@ class VoteNetResults(Data):
         pred_sem_cls: [B, num_proposal]
             Predicted semantic class
         """
-        boxes_3d = torch.zeros((self.batch_size, self.num_proposal, 6))  # [xmin, ymin, zmin, xmax, ymax, zmax]
+        boxes_3d = torch.zeros(
+            (self.batch_size, self.num_proposal, 6)
+        )  # [xmin, ymin, zmin, xmax, ymax, zmax]
         boxes_3d[:, :, 0] = torch.min(pred_corners_3d[:, :, :, 0], dim=2)[0]
         boxes_3d[:, :, 1] = torch.min(pred_corners_3d[:, :, :, 1], dim=2)[0]
         boxes_3d[:, :, 2] = torch.min(pred_corners_3d[:, :, :, 2], dim=2)[0]
@@ -250,6 +288,8 @@ class VoteNetResults(Data):
         boxes_3d = boxes_3d.cpu().numpy()
         mask = np.zeros((self.batch_size, self.num_proposal), dtype=np.bool)
         for b in range(self.batch_size):
-            pick = nms_samecls(boxes_3d[b], pred_sem_cls[b], objectness[b], overlap_threshold=0.25)
+            pick = nms_samecls(
+                boxes_3d[b], pred_sem_cls[b], objectness[b], overlap_threshold=0.25
+            )
             mask[b, pick] = True
         return mask

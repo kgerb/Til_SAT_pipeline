@@ -8,18 +8,26 @@ from .registration_metrics import compute_hit_ratio
 from .registration_metrics import compute_transfo_error
 from .registration_metrics import compute_scaled_registration_error
 from torch_points3d.models import model_interface
-from torch_points3d.utils.registration import estimate_transfo, fast_global_registration, get_matches
+from torch_points3d.utils.registration import (
+    estimate_transfo,
+    fast_global_registration,
+    get_matches,
+)
 
 
 class PatchRegistrationTracker(BaseTracker):
-    def __init__(self, dataset, stage="train", wandb_log=False, use_tensorboard: bool = False):
+    def __init__(
+        self, dataset, stage="train", wandb_log=False, use_tensorboard: bool = False
+    ):
         """
         generic tracker for registration task.
         to track results, it measures the loss, and the accuracy.
         only useful for the training.
         """
 
-        super(PatchRegistrationTracker, self).__init__(stage, wandb_log, use_tensorboard)
+        super(PatchRegistrationTracker, self).__init__(
+            stage, wandb_log, use_tensorboard
+        )
 
         self.reset(stage)
 
@@ -27,8 +35,7 @@ class PatchRegistrationTracker(BaseTracker):
         super().reset(stage=stage)
 
     def track(self, model: model_interface.TrackerInterface, **kwargs):
-        """ Add model predictions (accuracy)
-        """
+        """Add model predictions (accuracy)"""
         super().track(model)
 
         outputs = self._convert(model.get_output())
@@ -37,8 +44,7 @@ class PatchRegistrationTracker(BaseTracker):
         self._acc = compute_accuracy(outputs[:N], outputs[N:])
 
     def get_metrics(self, verbose=False) -> Dict[str, Any]:
-        """ Returns a dictionnary of all metrics and losses being tracked
-        """
+        """Returns a dictionnary of all metrics and losses being tracked"""
         metrics = super().get_metrics(verbose)
 
         metrics["{}_acc".format(self._stage)] = self._acc
@@ -62,12 +68,13 @@ class FragmentRegistrationTracker(BaseTracker):
         wandb_log=False,
         use_tensorboard: bool = False,
     ):
-
         """
-        tracker for registration tasks (we learn feature for each fragments like segmentation network)
-it measures loss, feature match recall, hit ratio, rotation error, translation error.
+                tracker for registration tasks (we learn feature for each fragments like segmentation network)
+        it measures loss, feature match recall, hit ratio, rotation error, translation error.
         """
-        super(FragmentRegistrationTracker, self).__init__(stage, wandb_log, use_tensorboard)
+        super(FragmentRegistrationTracker, self).__init__(
+            stage, wandb_log, use_tensorboard
+        )
 
         self.reset(stage)
         self.num_points = num_points
@@ -94,7 +101,11 @@ it measures loss, feature match recall, hit ratio, rotation error, translation e
             # batch_ind, batch_ind_target, batch_size_ind = model.get_ind()  # type: ignore
             input, input_target = model.get_input()
             batch_xyz, batch_xyz_target = input.pos, input_target.pos
-            batch_ind, batch_ind_target, batch_size_ind = input.ind, input_target.ind, input.size
+            batch_ind, batch_ind_target, batch_size_ind = (
+                input.ind,
+                input_target.ind,
+                input.size,
+            )
             batch_feat, batch_feat_target = model.get_output()
 
             nb_batches = batch_idx.max() + 1
@@ -127,15 +138,21 @@ it measures loss, feature match recall, hit ratio, rotation error, translation e
 
                 # print(matches_gt.max(0), len(xyz), len(xyz_target), len(matches_gt))
                 # print(batch_ind.shape, nb_batches)
-                T_gt = estimate_transfo(xyz[matches_gt[:, 0]], xyz_target[matches_gt[:, 1]])
+                T_gt = estimate_transfo(
+                    xyz[matches_gt[:, 0]], xyz_target[matches_gt[:, 1]]
+                )
 
                 matches_pred = get_matches(feat[rand], feat_target[rand_target])
                 T_pred = fast_global_registration(
-                    xyz[rand][matches_pred[:, 0]], xyz_target[rand_target][matches_pred[:, 1]]
+                    xyz[rand][matches_pred[:, 0]],
+                    xyz_target[rand_target][matches_pred[:, 1]],
                 )
 
                 hit_ratio = compute_hit_ratio(
-                    xyz[rand][matches_pred[:, 0]], xyz_target[rand_target][matches_pred[:, 1]], T_gt, self.tau_1
+                    xyz[rand][matches_pred[:, 0]],
+                    xyz_target[rand_target][matches_pred[:, 1]],
+                    T_gt,
+                    self.tau_1,
                 )
 
                 trans_error, rot_error = compute_transfo_error(T_pred, T_gt)
@@ -152,10 +169,18 @@ it measures loss, feature match recall, hit ratio, rotation error, translation e
     def get_metrics(self, verbose=False):
         metrics = super().get_metrics(verbose)
         if self._stage != "train":
-            metrics["{}_hit_ratio".format(self._stage)] = float(self._hit_ratio.value()[0])
-            metrics["{}_feat_match_ratio".format(self._stage)] = float(self._feat_match_ratio.value()[0])
-            metrics["{}_trans_error".format(self._stage)] = float(self._trans_error.value()[0])
-            metrics["{}_rot_error".format(self._stage)] = float(self._rot_error.value()[0])
+            metrics["{}_hit_ratio".format(self._stage)] = float(
+                self._hit_ratio.value()[0]
+            )
+            metrics["{}_feat_match_ratio".format(self._stage)] = float(
+                self._feat_match_ratio.value()[0]
+            )
+            metrics["{}_trans_error".format(self._stage)] = float(
+                self._trans_error.value()[0]
+            )
+            metrics["{}_rot_error".format(self._stage)] = float(
+                self._rot_error.value()[0]
+            )
             metrics["{}_rre".format(self._stage)] = float(self._rre.value()[0])
             metrics["{}_rte".format(self._stage)] = float(self._rte.value()[0])
             metrics["{}_sr_err".format(self._stage)] = float(self._sr_err.value()[0])

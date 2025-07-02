@@ -67,7 +67,6 @@ class ExperimentFolder:
 
 
 def main(args):
-
     experiment_with_models = defaultdict(list)
     run_paths = glob(os.path.join(ROOT, "outputs", "*", "*"))
     for run_path in run_paths:
@@ -88,7 +87,9 @@ def main(args):
             for metric_name in stats:
                 sentence = ""
                 for split_name in stats[metric_name].keys():
-                    sentence += "{}: {}, ".format(split_name, stats[metric_name][split_name])
+                    sentence += "{}: {}, ".format(
+                        split_name, stats[metric_name][split_name]
+                    )
                 metric_sentence = metric_name + "({})".format(sentence[:-2])
                 colored_print(COLORS.BBlue, metric_sentence)
             print("")
@@ -102,7 +103,14 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Find experiments")
-    parser.add_argument("-d", action="store_true", default=False, help="Delete empty folders")
-    parser.add_argument("-pdb", action="store_true", default=False, help="Activate pdb for explore Experiment Folder")
+    parser.add_argument(
+        "-d", action="store_true", default=False, help="Delete empty folders"
+    )
+    parser.add_argument(
+        "-pdb",
+        action="store_true",
+        default=False,
+        help="Activate pdb for explore Experiment Folder",
+    )
     args = parser.parse_args()
     main(args)

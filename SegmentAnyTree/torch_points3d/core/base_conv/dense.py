@@ -1,20 +1,5 @@
 import numpy as np
 import torch
-from torch.nn import (
-    Linear as Lin,
-    ReLU,
-    LeakyReLU,
-    BatchNorm1d as BN,
-    Dropout,
-)
-from torch_geometric.nn import (
-    knn_interpolate,
-    fps,
-    radius,
-    global_max_pool,
-    global_mean_pool,
-    knn,
-)
 from torch_geometric.data import Data
 import torch_points_kernels as tp
 
@@ -23,28 +8,31 @@ from torch_points3d.core.base_conv import BaseConvolution
 from torch_points3d.core.common_modules.dense_modules import MLP2D
 
 from torch_points3d.utils.enums import ConvolutionFormat
-from torch_points3d.utils.model_building_utils.activation_resolver import get_activation
 
 #################### THOSE MODULES IMPLEMENTS THE BASE DENSE CONV API ############################
 
 
 class BaseDenseConvolutionDown(BaseConvolution):
-    """ Multiscale convolution down (also supports single scale). Convolution kernel is shared accross the scales
+    """Multiscale convolution down (also supports single scale). Convolution kernel is shared accross the scales
 
-        Arguments:
-            sampler  -- Strategy for sampling the input clouds
-            neighbour_finder -- Multiscale strategy for finding neighbours
+    Arguments:
+        sampler  -- Strategy for sampling the input clouds
+        neighbour_finder -- Multiscale strategy for finding neighbours
     """
 
     CONV_TYPE = ConvolutionFormat.DENSE.value
 
-    def __init__(self, sampler, neighbour_finder: BaseMSNeighbourFinder, *args, **kwargs):
-        super(BaseDenseConvolutionDown, self).__init__(sampler, neighbour_finder, *args, **kwargs)
+    def __init__(
+        self, sampler, neighbour_finder: BaseMSNeighbourFinder, *args, **kwargs
+    ):
+        super(BaseDenseConvolutionDown, self).__init__(
+            sampler, neighbour_finder, *args, **kwargs
+        )
         self._index = kwargs.get("index", None)
         self._save_sampling_id = kwargs.get("save_sampling_id", None)
 
     def conv(self, x, pos, new_pos, radius_idx, scale_idx):
-        """ Implements a Dense convolution where radius_idx represents
+        """Implements a Dense convolution where radius_idx represents
         the indexes of the points in x and pos to be agragated into the new feature
         for each point in new_pos
 
@@ -88,11 +76,12 @@ class BaseDenseConvolutionDown(BaseConvolution):
 
 
 class BaseDenseConvolutionUp(BaseConvolution):
-
     CONV_TYPE = ConvolutionFormat.DENSE.value
 
     def __init__(self, neighbour_finder, *args, **kwargs):
-        super(BaseDenseConvolutionUp, self).__init__(None, neighbour_finder, *args, **kwargs)
+        super(BaseDenseConvolutionUp, self).__init__(
+            None, neighbour_finder, *args, **kwargs
+        )
         self._index = kwargs.get("index", None)
         self._skip = kwargs.get("skip", True)
 
@@ -100,7 +89,7 @@ class BaseDenseConvolutionUp(BaseConvolution):
         raise NotImplementedError
 
     def forward(self, data, **kwargs):
-        """ Propagates features from one layer to the next.
+        """Propagates features from one layer to the next.
         data contains information from the down convs in data_skip
 
         Arguments:
@@ -124,7 +113,14 @@ class BaseDenseConvolutionUp(BaseConvolution):
 
 
 class DenseFPModule(BaseDenseConvolutionUp):
-    def __init__(self, up_conv_nn, bn=True, bias=False, activation=torch.nn.LeakyReLU(negative_slope=0.01), **kwargs):
+    def __init__(
+        self,
+        up_conv_nn,
+        bn=True,
+        bias=False,
+        activation=torch.nn.LeakyReLU(negative_slope=0.01),
+        **kwargs,
+    ):
         super(DenseFPModule, self).__init__(None, **kwargs)
 
         self.nn = MLP2D(up_conv_nn, bn=bn, activation=activation, bias=False)
@@ -148,7 +144,14 @@ class DenseFPModule(BaseDenseConvolutionUp):
 
 
 class GlobalDenseBaseModule(torch.nn.Module):
-    def __init__(self, nn, aggr="max", bn=True, activation=torch.nn.LeakyReLU(negative_slope=0.01), **kwargs):
+    def __init__(
+        self,
+        nn,
+        aggr="max",
+        bn=True,
+        activation=torch.nn.LeakyReLU(negative_slope=0.01),
+        **kwargs,
+    ):
         super(GlobalDenseBaseModule, self).__init__()
         self.nn = MLP2D(nn, bn=bn, activation=activation, bias=False)
         if aggr.lower() not in ["mean", "max"]:
@@ -177,11 +180,15 @@ class GlobalDenseBaseModule(torch.nn.Module):
         elif self._aggr == "mean":
             x = x.squeeze(-1).mean(-1)
         else:
-            raise NotImplementedError("The following aggregation {} is not recognized".format(self._aggr))
+            raise NotImplementedError(
+                "The following aggregation {} is not recognized".format(self._aggr)
+            )
 
         pos = None  # pos.mean(1).unsqueeze(1)
         x = x.unsqueeze(-1)
         return Data(x=x, pos=pos)
 
     def __repr__(self):
-        return "{}: {} (aggr={}, {})".format(self.__class__.__name__, self.nb_params, self._aggr, self.nn)
+        return "{}: {} (aggr={}, {})".format(
+            self.__class__.__name__, self.nb_params, self._aggr, self.nn
+        )

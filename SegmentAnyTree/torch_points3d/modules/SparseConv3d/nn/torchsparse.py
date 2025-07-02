@@ -14,7 +14,12 @@ class Conv3d(TS.nn.Conv3d):
         bias: bool = False,
     ) -> None:
         super().__init__(
-            in_channels, out_channels, kernel_size=kernel_size, stride=stride, dilation=dilation, bias=bias,
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            dilation=dilation,
+            bias=bias,
         )
 
 
@@ -41,7 +46,9 @@ class Conv3dTranspose(TS.nn.Conv3d):
 
 
 class BatchNorm(torch.nn.Module):
-    def __init__(self, num_features: int, *, eps: float = 1e-5, momentum: float = 0.1) -> None:
+    def __init__(
+        self, num_features: int, *, eps: float = 1e-5, momentum: float = 0.1
+    ) -> None:
         super().__init__()
         self.bn = TS.nn.BatchNorm(num_features=num_features, eps=eps, momentum=momentum)
 

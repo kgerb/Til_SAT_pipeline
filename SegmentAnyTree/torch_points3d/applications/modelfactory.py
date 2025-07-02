@@ -18,7 +18,11 @@ class ModelFactory:
 
     @staticmethod
     def raise_enum_error(arg_name, arg_value, options):
-        raise Exception("The provided argument {} with value {} isn't within {}".format(arg_name, arg_value, options))
+        raise Exception(
+            "The provided argument {} with value {} isn't within {}".format(
+                arg_name, arg_value, options
+            )
+        )
 
     def __init__(
         self,
@@ -26,13 +30,15 @@ class ModelFactory:
         input_nc: int = None,
         num_layers: int = None,
         config: DictConfig = None,
-        **kwargs
+        **kwargs,
     ):
         if not architecture:
             raise ValueError()
         self._architecture = architecture.lower()
-        assert self._architecture in self.MODEL_ARCHITECTURES, ModelFactory.raise_enum_error(
-            "model_architecture", self._architecture, self.MODEL_ARCHITECTURES
+        assert self._architecture in self.MODEL_ARCHITECTURES, (
+            ModelFactory.raise_enum_error(
+                "model_architecture", self._architecture, self.MODEL_ARCHITECTURES
+            )
         )
 
         self._input_nc = input_nc
@@ -80,7 +86,7 @@ class ModelFactory:
 
     @staticmethod
     def resolve_model(model_config, num_features, kwargs):
-        """ Parses the model config and evaluates any expression that may contain constants
+        """Parses the model config and evaluates any expression that may contain constants
         Overrides any argument in the `define_constants` with keywords wrgument to the constructor
         """
         # placeholders to subsitute

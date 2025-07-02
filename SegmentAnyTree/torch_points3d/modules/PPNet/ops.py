@@ -31,7 +31,9 @@ class PosPoolLayer(torch.nn.Module):
         self.activation = activation
         if self.output_conv:
             self.oconv = torch.nn.Sequential(
-                nn.Linear(num_inputs, num_outputs, bias=False), bn(num_outputs, momentum=bn_momentum), activation
+                nn.Linear(num_inputs, num_outputs, bias=False),
+                bn(num_outputs, momentum=bn_momentum),
+                activation,
             )
 
     def forward(self, query_points, support_points, neighbors, x):
@@ -67,8 +69,12 @@ class PosPoolLayer(torch.nn.Module):
                 feat_dim = 1
                 wave_length = 1000
                 alpha = 100
-                feat_range = torch.arange(feat_dim, dtype=x.dtype).to(x.device)  # (feat_dim, )
-                dim_mat = torch.pow(1.0 * wave_length, (1.0 / feat_dim) * feat_range)  # (feat_dim, )
+                feat_range = torch.arange(feat_dim, dtype=x.dtype).to(
+                    x.device
+                )  # (feat_dim, )
+                dim_mat = torch.pow(
+                    1.0 * wave_length, (1.0 / feat_dim) * feat_range
+                )  # (feat_dim, )
                 position_mat = alpha * position_mat.unsqueeze(-1)
                 div_mat = position_mat / dim_mat  # [N, M, 3, feat_dim]
                 sin_mat = torch.sin(div_mat)  # [N, M, 3, feat_dim]
@@ -81,8 +87,12 @@ class PosPoolLayer(torch.nn.Module):
                 feat_dim = self.num_inputs // 6
                 wave_length = 1000
                 alpha = 100
-                feat_range = torch.arange(feat_dim, dtype=x.dtype).to(x.device)  # (feat_dim, )
-                dim_mat = torch.pow(1.0 * wave_length, (1.0 / feat_dim) * feat_range)  # (feat_dim, )
+                feat_range = torch.arange(feat_dim, dtype=x.dtype).to(
+                    x.device
+                )  # (feat_dim, )
+                dim_mat = torch.pow(
+                    1.0 * wave_length, (1.0 / feat_dim) * feat_range
+                )  # (feat_dim, )
                 position_mat = alpha * position_mat.unsqueeze(-1)  # [N, M, 3, 1]
                 div_mat = position_mat / dim_mat  # [N, M, 3, feat_dim]
                 sin_mat = torch.sin(div_mat)  # [N, M, 3, feat_dim]
@@ -98,7 +108,9 @@ class PosPoolLayer(torch.nn.Module):
 
         feature_map = neighborhood_features.view(N, M, mid_fdim, shared_channels)
         aggregation_feature = geo_prior * feature_map
-        aggregation_feature = aggregation_feature.view(N, -1, self.num_inputs)  # [N, M, d]
+        aggregation_feature = aggregation_feature.view(
+            N, -1, self.num_inputs
+        )  # [N, M, d]
 
         if self.reduction == "sum":
             aggregation_feature = torch.sum(aggregation_feature, 1)  # [N, d]
@@ -110,12 +122,16 @@ class PosPoolLayer(torch.nn.Module):
         elif self.reduction == "max":
             # mask padding
             batch_mask = torch.zeros_like(x)  # [n0_points, d]
-            batch_mask = torch.cat([batch_mask, -65535 * torch.ones_like(batch_mask[:1, :])], dim=0)
+            batch_mask = torch.cat(
+                [batch_mask, -65535 * torch.ones_like(batch_mask[:1, :])], dim=0
+            )
             batch_mask = gather(batch_mask, neighbors)  # [N, M, d]
             aggregation_feature = aggregation_feature + batch_mask
             aggregation_feature = torch.max(aggregation_feature, 1)  # [N, d]
         else:
-            raise NotImplementedError("Reduction {} not supported in PosPool".format(self.reduction))
+            raise NotImplementedError(
+                "Reduction {} not supported in PosPool".format(self.reduction)
+            )
 
         if self.bn:
             aggregation_feature = self.bn(aggregation_feature)

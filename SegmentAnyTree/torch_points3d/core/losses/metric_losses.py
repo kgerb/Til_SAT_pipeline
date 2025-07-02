@@ -13,9 +13,9 @@ def _hash(arr, M):
     hash_vec = np.zeros(N, dtype=np.int64)
     for d in range(D):
         if isinstance(arr, np.ndarray):
-            hash_vec += arr[:, d] * M ** d
+            hash_vec += arr[:, d] * M**d
         else:
-            hash_vec += arr[d] * M ** d
+            hash_vec += arr[d] * M**d
     return hash_vec
 
 
@@ -105,16 +105,21 @@ class ContrastiveHardestNegativeLoss(nn.Module):
         neg_keys0 = _hash([pos_ind0.numpy(), D01ind], hash_seed)
         neg_keys1 = _hash([D10ind, pos_ind1.numpy()], hash_seed)
 
-        mask0 = torch.from_numpy(np.logical_not(np.isin(neg_keys0, pos_keys, assume_unique=False)))
-        mask1 = torch.from_numpy(np.logical_not(np.isin(neg_keys1, pos_keys, assume_unique=False)))
+        mask0 = torch.from_numpy(
+            np.logical_not(np.isin(neg_keys0, pos_keys, assume_unique=False))
+        )
+        mask1 = torch.from_numpy(
+            np.logical_not(np.isin(neg_keys1, pos_keys, assume_unique=False))
+        )
         pos_loss = F.relu((posF0 - posF1).pow(2).sum(1) - self.pos_thresh)
         neg_loss0 = F.relu(self.neg_thresh - D01min[mask0]).pow(2)
         neg_loss1 = F.relu(self.neg_thresh - D10min[mask1]).pow(2)
         return pos_loss.mean(), (neg_loss0.mean() + neg_loss1.mean()) / 2
 
     def forward(self, F0, F1, matches, xyz0=None, xyz1=None):
-
-        pos_loss, neg_loss = self.contrastive_hardest_negative_loss(F0, F1, matches.detach().cpu())
+        pos_loss, neg_loss = self.contrastive_hardest_negative_loss(
+            F0, F1, matches.detach().cpu()
+        )
 
         return pos_loss + neg_loss
 
@@ -140,7 +145,6 @@ class BatchHardContrastiveLoss(nn.Module):
         self.min_dist = min_dist
 
     def forward(self, F0, F1, positive_pairs, xyz0=None, xyz1=None):
-
         posF0 = F0[positive_pairs[:, 0]]
         posF1 = F1[positive_pairs[:, 1]]
 
@@ -148,14 +152,15 @@ class BatchHardContrastiveLoss(nn.Module):
         false_negative = pdist(subxyz0, subxyz0, dist_type="L2") > self.min_dist
         # dists = pdist(posF0, posF1, dist_type="L2").view(-1)
         furthest_pos, _ = (posF0 - posF1).pow(2).max(1)
-        neg_loss = F.relu(self.neg_thresh - (posF0[0] - posF1[false_negative[0]]).pow(2).sum(1).min()).pow(2) / len(
-            posF0
-        )
+        neg_loss = F.relu(
+            self.neg_thresh - (posF0[0] - posF1[false_negative[0]]).pow(2).sum(1).min()
+        ).pow(2) / len(posF0)
 
         for i in range(1, len(posF0)):
-            neg_loss += F.relu(self.neg_thresh - (posF0[i] - posF1[false_negative[i]]).pow(2).sum(1).min()).pow(
-                2
-            ) / len(posF0)
+            neg_loss += F.relu(
+                self.neg_thresh
+                - (posF0[i] - posF1[false_negative[i]]).pow(2).sum(1).min()
+            ).pow(2) / len(posF0)
 
         pos_loss = F.relu(furthest_pos - self.pos_thresh).pow(2)
         # neg_loss = F.relu(self.neg_thresh - closest_neg)

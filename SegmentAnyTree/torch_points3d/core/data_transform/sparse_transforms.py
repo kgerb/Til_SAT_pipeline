@@ -1,24 +1,5 @@
-from typing import List
-import itertools
-import numpy as np
-import math
-import re
 import torch
-import scipy
 import random
-from tqdm.auto import tqdm as tq
-from torch.nn import functional as F
-from functools import partial
-from torch_geometric.nn import fps, radius, knn, voxel_grid
-from torch_geometric.nn.pool.consecutive import consecutive_cluster
-from torch_geometric.nn.pool.pool import pool_pos, pool_batch
-from torch_scatter import scatter_add, scatter_mean
-from torch_cluster import grid_cluster
-
-from torch_points3d.datasets.multiscale_data import MultiScaleData
-from torch_points3d.utils.config import is_list
-from torch_points3d.utils import is_iterable
-from .grid_transform import group_data, GridSampling3D, shuffle_data
 
 
 class RandomCoordsFlip(object):
@@ -37,7 +18,9 @@ class RandomCoordsFlip(object):
         data: Data
             Returns the same data object with only one point per voxel
         """
-        assert 0 <= p <= 1, "p should be within 0 and 1. Higher probability reduce chance of flipping"
+        assert 0 <= p <= 1, (
+            "p should be within 0 and 1. Higher probability reduce chance of flipping"
+        )
         self._is_temporal = is_temporal
         self._D = 4 if is_temporal else 3
         mapping = {"x": 0, "y": 1, "z": 2}

@@ -1,18 +1,4 @@
 from torch import nn
-from torch_geometric.nn import (
-    global_max_pool,
-    global_mean_pool,
-    fps,
-    radius,
-    knn_interpolate,
-)
-from torch.nn import (
-    Linear as Lin,
-    ReLU,
-    LeakyReLU,
-    BatchNorm1d as BN,
-    Dropout,
-)
 from omegaconf.listconfig import ListConfig
 from omegaconf.dictconfig import DictConfig
 import logging
@@ -52,15 +38,23 @@ class UnetBasedModel(BaseModel):
     def _save_sampling_and_search(self, submodule):
         sampler = getattr(submodule.down, "sampler", None)
         if is_list(sampler):
-            self._spatial_ops_dict["sampler"] = sampler + self._spatial_ops_dict["sampler"]
+            self._spatial_ops_dict["sampler"] = (
+                sampler + self._spatial_ops_dict["sampler"]
+            )
         else:
-            self._spatial_ops_dict["sampler"] = [sampler] + self._spatial_ops_dict["sampler"]
+            self._spatial_ops_dict["sampler"] = [sampler] + self._spatial_ops_dict[
+                "sampler"
+            ]
 
         neighbour_finder = getattr(submodule.down, "neighbour_finder", None)
         if is_list(neighbour_finder):
-            self._spatial_ops_dict["neighbour_finder"] = neighbour_finder + self._spatial_ops_dict["neighbour_finder"]
+            self._spatial_ops_dict["neighbour_finder"] = (
+                neighbour_finder + self._spatial_ops_dict["neighbour_finder"]
+            )
         else:
-            self._spatial_ops_dict["neighbour_finder"] = [neighbour_finder] + self._spatial_ops_dict["neighbour_finder"]
+            self._spatial_ops_dict["neighbour_finder"] = [
+                neighbour_finder
+            ] + self._spatial_ops_dict["neighbour_finder"]
 
         upsample_op = getattr(submodule.up, "upsample_op", None)
         if upsample_op:
@@ -83,7 +77,11 @@ class UnetBasedModel(BaseModel):
         """
         opt = copy.deepcopy(opt)
         super(UnetBasedModel, self).__init__(opt)
-        self._spatial_ops_dict = {"neighbour_finder": [], "sampler": [], "upsample_op": []}
+        self._spatial_ops_dict = {
+            "neighbour_finder": [],
+            "sampler": [],
+            "upsample_op": [],
+        }
         # detect which options format has been used to define the model
         if type(opt.down_conv) is ListConfig or "down_conv_nn" not in opt.down_conv:
             self._init_from_layer_list_format(opt, model_type, dataset, modules_lib)
@@ -125,7 +123,9 @@ class UnetBasedModel(BaseModel):
         if num_convs > 1:
             for index in range(num_convs - 1, 0, -1):
                 args_up, args_down = self._fetch_arguments_up_and_down(opt, index)
-                unet_block = UnetSkipConnectionBlock(args_up=args_up, args_down=args_down, submodule=unet_block)
+                unet_block = UnetSkipConnectionBlock(
+                    args_up=args_up, args_down=args_down, submodule=unet_block
+                )
                 self._save_sampling_and_search(unet_block)
         else:
             index = num_convs
@@ -145,9 +145,15 @@ class UnetBasedModel(BaseModel):
         self._get_factory(model_type, modules_lib)
 
         down_conv_layers = (
-            opt.down_conv if type(opt.down_conv) is ListConfig else self._flatten_compact_options(opt.down_conv)
+            opt.down_conv
+            if type(opt.down_conv) is ListConfig
+            else self._flatten_compact_options(opt.down_conv)
         )
-        up_conv_layers = opt.up_conv if type(opt.up_conv) is ListConfig else self._flatten_compact_options(opt.up_conv)
+        up_conv_layers = (
+            opt.up_conv
+            if type(opt.up_conv) is ListConfig
+            else self._flatten_compact_options(opt.up_conv)
+        )
         num_convs = len(down_conv_layers)
 
         unet_block = []
@@ -169,7 +175,9 @@ class UnetBasedModel(BaseModel):
             down_layer = dict(down_conv_layers[index])
             up_layer = dict(up_conv_layers[num_convs - index])
 
-            down_layer["down_conv_cls"] = getattr(modules_lib, down_layer["module_name"])
+            down_layer["down_conv_cls"] = getattr(
+                modules_lib, down_layer["module_name"]
+            )
             up_layer["up_conv_cls"] = getattr(modules_lib, up_layer["module_name"])
 
             unet_block = UnetSkipConnectionBlock(
@@ -234,7 +242,9 @@ class UnetBasedModel(BaseModel):
 
         for index in range(int(1e6)):
             try:
-                flattenedOpts.append(DictConfig(self._fetch_arguments_from_list(opt, index)))
+                flattenedOpts.append(
+                    DictConfig(self._fetch_arguments_from_list(opt, index))
+                )
             except IndexError:
                 break
 
@@ -355,7 +365,11 @@ class UnwrappedUnetBasedModel(BaseModel):
         opt = copy.deepcopy(opt)
         super(UnwrappedUnetBasedModel, self).__init__(opt)
         # detect which options format has been used to define the model
-        self._spatial_ops_dict = {"neighbour_finder": [], "sampler": [], "upsample_op": []}
+        self._spatial_ops_dict = {
+            "neighbour_finder": [],
+            "sampler": [],
+            "upsample_op": [],
+        }
 
         if is_list(opt.down_conv) or "down_conv_nn" not in opt.down_conv:
             raise NotImplementedError
@@ -407,12 +421,14 @@ class UnwrappedUnetBasedModel(BaseModel):
         self.inner_modules = nn.ModuleList()
         self.up_modules = nn.ModuleList()
 
-        self.save_sampling_id = opt.down_conv.get('save_sampling_id')
+        self.save_sampling_id = opt.down_conv.get("save_sampling_id")
 
         # Factory for creating up and down modules
         factory_module_cls = self._get_factory(model_type, modules_lib)
         down_conv_cls_name = opt.down_conv.module_name
-        up_conv_cls_name = opt.up_conv.module_name if opt.get('up_conv') is not None else None
+        up_conv_cls_name = (
+            opt.up_conv.module_name if opt.get("up_conv") is not None else None
+        )
         self._factory_module = factory_module_cls(
             down_conv_cls_name, up_conv_cls_name, modules_lib
         )  # Create the factory object
@@ -443,8 +459,10 @@ class UnwrappedUnetBasedModel(BaseModel):
                 self._save_upsample(up_module)
                 self.up_modules.append(up_module)
 
-        self.metric_loss_module, self.miner_module = BaseModel.get_metric_loss_and_miner(
-            getattr(opt, "metric_loss", None), getattr(opt, "miner", None)
+        self.metric_loss_module, self.miner_module = (
+            BaseModel.get_metric_loss_and_miner(
+                getattr(opt, "metric_loss", None), getattr(opt, "miner", None)
+            )
         )
 
     def _get_factory(self, model_name, modules_lib) -> BaseFactory:
@@ -492,7 +510,9 @@ class UnwrappedUnetBasedModel(BaseModel):
 
         for index in range(int(1e6)):
             try:
-                flattenedOpts.append(DictConfig(self._fetch_arguments_from_list(opt, index)))
+                flattenedOpts.append(
+                    DictConfig(self._fetch_arguments_from_list(opt, index))
+                )
             except IndexError:
                 break
 
@@ -523,7 +543,9 @@ class UnwrappedUnetBasedModel(BaseModel):
         sampling_ids = self._collect_sampling_ids(stack_down)
 
         for i in range(len(self.up_modules)):
-            data = self.up_modules[i]((data, stack_down.pop()), precomputed=precomputed_up)
+            data = self.up_modules[i](
+                (data, stack_down.pop()), precomputed=precomputed_up
+            )
 
         for key, value in sampling_ids.items():
             setattr(data, key, value)

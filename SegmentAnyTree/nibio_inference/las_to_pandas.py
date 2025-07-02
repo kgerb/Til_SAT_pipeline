@@ -4,6 +4,7 @@ import laspy
 
 # works with laspy 2.1.2
 
+
 def las_to_pandas(las_file_path, csv_file_path=None):
     file_content = laspy.read(las_file_path)
 
@@ -14,13 +15,17 @@ def las_to_pandas(las_file_path, csv_file_path=None):
     #                     'scan_direction_flag', 'edge_of_flight_line', 'classification',
     #                     'synthetic', 'key_point', 'withheld', 'scan_angle_rank',
     #                     'user_data', 'pt_src_id']
-    
+
     # Filter only available dimensions
-    available_dimensions = [dim for dim in basic_dimensions if hasattr(file_content, dim.lower())]
+    available_dimensions = [
+        dim for dim in basic_dimensions if hasattr(file_content, dim.lower())
+    ]
 
     # Put all basic dimensions into a numpy array
-    basic_points = np.vstack([getattr(file_content, dim.lower()) for dim in available_dimensions]).T
-    
+    basic_points = np.vstack(
+        [getattr(file_content, dim.lower()) for dim in available_dimensions]
+    ).T
+
     # Fetch any extra dimensions
     gt_extra_dimensions = list(file_content.point_format.extra_dimension_names)
 
@@ -28,7 +33,9 @@ def las_to_pandas(las_file_path, csv_file_path=None):
     gt_extra_dimensions = list(set(gt_extra_dimensions) - set(available_dimensions))
 
     if gt_extra_dimensions:
-        extra_points = np.vstack([getattr(file_content, dim) for dim in gt_extra_dimensions]).T
+        extra_points = np.vstack(
+            [getattr(file_content, dim) for dim in gt_extra_dimensions]
+        ).T
         # Combine basic and extra dimensions
         all_points = np.hstack((basic_points, extra_points))
         all_columns = available_dimensions + gt_extra_dimensions
@@ -46,7 +53,7 @@ def las_to_pandas(las_file_path, csv_file_path=None):
 
     # Save pandas dataframe to csv
     if csv_file_path is not None:
-        points_df.to_csv(csv_file_path, index=False, header=True, sep=',')
+        points_df.to_csv(csv_file_path, index=False, header=True, sep=",")
 
     return points_df
 
@@ -54,9 +61,13 @@ def las_to_pandas(las_file_path, csv_file_path=None):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Convert las or laz files to pandas dataframes.')
-    parser.add_argument('-i', '--input_file', type=str, help='Path to the input file.')
-    parser.add_argument('-o', '--output_file', type=str, help='Path to the output file.')
+    parser = argparse.ArgumentParser(
+        description="Convert las or laz files to pandas dataframes."
+    )
+    parser.add_argument("-i", "--input_file", type=str, help="Path to the input file.")
+    parser.add_argument(
+        "-o", "--output_file", type=str, help="Path to the output file."
+    )
 
     args = parser.parse_args()
 

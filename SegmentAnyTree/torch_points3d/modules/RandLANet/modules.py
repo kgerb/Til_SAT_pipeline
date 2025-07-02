@@ -8,13 +8,15 @@ from torch_points3d.core.base_conv.message_passing import *
 
 class RandlaKernel(MessagePassing):
     """
-        Implements both the Local Spatial Encoding and Attentive Pooling blocks from
-        RandLA-Net: Efficient Semantic Segmentation of Large-Scale Point Clouds
-        https://arxiv.org/pdf/1911.11236
+    Implements both the Local Spatial Encoding and Attentive Pooling blocks from
+    RandLA-Net: Efficient Semantic Segmentation of Large-Scale Point Clouds
+    https://arxiv.org/pdf/1911.11236
 
     """
 
-    def __init__(self, point_pos_nn=None, attention_nn=None, global_nn=None, *args, **kwargs):
+    def __init__(
+        self, point_pos_nn=None, attention_nn=None, global_nn=None, *args, **kwargs
+    ):
         MessagePassing.__init__(self, aggr="add")
 
         self.point_pos_nn = MLP(point_pos_nn)
@@ -26,7 +28,6 @@ class RandlaKernel(MessagePassing):
         return x
 
     def message(self, x_j, pos_i, pos_j):
-
         if x_j is None:
             x_j = pos_j
 
@@ -56,10 +57,14 @@ class RandlaKernel(MessagePassing):
 
 class RandlaConv(BaseConvolutionDown):
     def __init__(self, ratio=None, k=None, *args, **kwargs):
-        super(RandlaConv, self).__init__(RandomSampler(ratio), KNNNeighbourFinder(k), *args, **kwargs)
+        super(RandlaConv, self).__init__(
+            RandomSampler(ratio), KNNNeighbourFinder(k), *args, **kwargs
+        )
         if kwargs.get("index") == 0 and kwargs.get("nb_feature") is not None:
             kwargs["point_pos_nn"][-1] = kwargs.get("nb_feature")
-            kwargs["attention_nn"][0] = kwargs["attention_nn"][-1] = kwargs.get("nb_feature") * 2
+            kwargs["attention_nn"][0] = kwargs["attention_nn"][-1] = (
+                kwargs.get("nb_feature") * 2
+            )
             kwargs["down_conv_nn"][0] = kwargs.get("nb_feature") * 2
         self._conv = RandlaKernel(*args, global_nn=kwargs["down_conv_nn"], **kwargs)
 
@@ -81,17 +86,29 @@ class DilatedResidualBlock(BaseResnetBlock):
         global_nn1,
         global_nn2,
         *args,
-        **kwargs
+        **kwargs,
     ):
         if kwargs.get("index") == 0 and kwargs.get("nb_feature") is not None:
             indim = kwargs.get("nb_feature")
         super(DilatedResidualBlock, self).__init__(indim, outdim, outdim)
         self.conv1 = RandlaConv(
-            ratio1, 16, point_pos_nn=point_pos_nn1, attention_nn=attention_nn1, down_conv_nn=global_nn1, *args, **kwargs
+            ratio1,
+            16,
+            point_pos_nn=point_pos_nn1,
+            attention_nn=attention_nn1,
+            down_conv_nn=global_nn1,
+            *args,
+            **kwargs,
         )
         kwargs["nb_feature"] = None
         self.conv2 = RandlaConv(
-            ratio2, 16, point_pos_nn=point_pos_nn2, attention_nn=attention_nn2, down_conv_nn=global_nn2, *args, **kwargs
+            ratio2,
+            16,
+            point_pos_nn=point_pos_nn2,
+            attention_nn=attention_nn2,
+            down_conv_nn=global_nn2,
+            *args,
+            **kwargs,
         )
 
     def convs(self, data):
@@ -101,7 +118,17 @@ class DilatedResidualBlock(BaseResnetBlock):
 
 
 class RandLANetRes(torch.nn.Module):
-    def __init__(self, indim, outdim, ratio, point_pos_nn, attention_nn, down_conv_nn, *args, **kwargs):
+    def __init__(
+        self,
+        indim,
+        outdim,
+        ratio,
+        point_pos_nn,
+        attention_nn,
+        down_conv_nn,
+        *args,
+        **kwargs,
+    ):
         super(RandLANetRes, self).__init__()
 
         self._conv = DilatedResidualBlock(
@@ -116,7 +143,7 @@ class RandLANetRes(torch.nn.Module):
             down_conv_nn[0],
             down_conv_nn[1],
             *args,
-            **kwargs
+            **kwargs,
         )
 
     def forward(self, data):

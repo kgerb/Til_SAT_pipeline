@@ -5,8 +5,7 @@ from torch.nn.parameter import Parameter
 
 
 class BaseModule(nn.Module):
-    """ Base module class with some basic additions to the pytorch Module class
-    """
+    """Base module class with some basic additions to the pytorch Module class"""
 
     @property
     def nb_params(self):
@@ -64,7 +63,7 @@ class UnaryConv(BaseModule):
 
 
 class MultiHeadClassifier(BaseModule):
-    """ Allows segregated segmentation in case the category of an object is known. This is the case in ShapeNet
+    """Allows segregated segmentation in case the category of an object is known. This is the case in ShapeNet
     for example.
 
         Arguments:
@@ -78,7 +77,7 @@ class MultiHeadClassifier(BaseModule):
         Keyword Arguments:
             dropout_proba  (default: {0.5})
             bn_momentum  -- batch norm momentum (default: {0.1})
-        """
+    """
 
     def __init__(self, in_features, cat_to_seg, dropout_proba=0.5, bn_momentum=0.1):
         super().__init__()
@@ -94,13 +93,21 @@ class MultiHeadClassifier(BaseModule):
             self._cat_to_seg[i] = seg
 
         self.channel_rasing = MLP(
-            [in_features, self._num_categories * in_features], bn_momentum=bn_momentum, bias=False
+            [in_features, self._num_categories * in_features],
+            bn_momentum=bn_momentum,
+            bias=False,
         )
         if dropout_proba:
             self.channel_rasing.add_module("Dropout", nn.Dropout(p=dropout_proba))
 
-        self.classifier = UnaryConv((self._num_categories, in_features, self._max_seg_count))
-        self._bias = Parameter(torch.zeros(self._max_seg_count,))
+        self.classifier = UnaryConv(
+            (self._num_categories, in_features, self._max_seg_count)
+        )
+        self._bias = Parameter(
+            torch.zeros(
+                self._max_seg_count,
+            )
+        )
 
     def forward(self, features, category_labels, **kwargs):
         assert features.dim() == 2
@@ -109,7 +116,9 @@ class MultiHeadClassifier(BaseModule):
         features = self.channel_rasing(features)
         features = features.reshape((-1, self._num_categories, in_dim))
         features = features.transpose(0, 1)  # [num_categories, num_points, in_dim]
-        features = self.classifier(features) + self._bias  # [num_categories, num_points, max_seg]
+        features = (
+            self.classifier(features) + self._bias
+        )  # [num_categories, num_points, max_seg]
         ind = category_labels.unsqueeze(-1).repeat(1, 1, features.shape[-1]).long()
 
         logits = features.gather(0, ind).squeeze(0)
@@ -134,7 +143,7 @@ class FastBatchNorm1d(BaseModule):
         return self.batch_norm(x.permute(0, 2, 1)).permute(0, 2, 1)
 
     def _forward_sparse(self, x):
-        """ Batch norm 1D is not optimised for 2D tensors. The first dimension is supposed to be
+        """Batch norm 1D is not optimised for 2D tensors. The first dimension is supposed to be
         the batch and therefore not very large. So we introduce a custom version that leverages BatchNorm1D
         in a more optimised way
         """

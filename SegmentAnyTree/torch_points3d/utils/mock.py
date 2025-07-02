@@ -25,7 +25,10 @@ class MockDataset(torch.utils.data.Dataset):
         self.batch_size = 2
         self.weight_classes = None
         if feature_size > 0:
-            self._feature = torch.tensor([range(feature_size) for i in range(self.num_points)], dtype=torch.float,)
+            self._feature = torch.tensor(
+                [range(feature_size) for i in range(self.num_points)],
+                dtype=torch.float,
+            )
         else:
             self._feature = None
         self._y = torch.tensor([0 for i in range(self.num_points)], dtype=torch.long)
@@ -44,7 +47,12 @@ class MockDataset(torch.utils.data.Dataset):
         torch.manual_seed(0)
         torch.randn((self.num_points, 3))
         datalist = [
-            Data(pos=torch.randn((self.num_points, 3)), x=self._feature, y=self._y, category=self._category)
+            Data(
+                pos=torch.randn((self.num_points, 3)),
+                x=self._feature,
+                y=self._y,
+                category=self._category,
+            )
             for i in range(self.batch_size)
         ]
         if self._transform:

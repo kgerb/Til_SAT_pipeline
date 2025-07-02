@@ -3,17 +3,21 @@ import torch
 import numpy as np
 
 from torch_points3d.metrics.confusion_matrix import ConfusionMatrix
-from torch_points3d.metrics.base_tracker import BaseTracker, meter_value
-from torch_points3d.metrics.meters import APMeter
+from torch_points3d.metrics.base_tracker import BaseTracker
 from torch_points3d.datasets.segmentation import IGNORE_LABEL
 from torch_points3d.models import model_interface
 
 
 class SegmentationTracker(BaseTracker):
     def __init__(
-        self, dataset, stage="train", wandb_log=False, use_tensorboard: bool = False, ignore_label: int = IGNORE_LABEL
+        self,
+        dataset,
+        stage="train",
+        wandb_log=False,
+        use_tensorboard: bool = False,
+        ignore_label: int = IGNORE_LABEL,
     ):
-        """ This is a generic tracker for segmentation tasks.
+        """This is a generic tracker for segmentation tasks.
         It uses a confusion matrix in the back-end to track results.
         Use the tracker to track an epoch.
         You can use the reset function before you start a new epoch
@@ -57,8 +61,7 @@ class SegmentationTracker(BaseTracker):
         return self._confusion_matrix.confusion_matrix
 
     def track(self, model: model_interface.TrackerInterface, **kwargs):
-        """ Add current model predictions (usually the result of a batch) to the tracking
-        """
+        """Add current model predictions (usually the result of a batch) to the tracking"""
         if not self._dataset.has_labels(self._stage):
             return
 
@@ -87,12 +90,13 @@ class SegmentationTracker(BaseTracker):
         self._miou = 100 * self._confusion_matrix.get_average_intersection_union()
         self._iou_per_class = {
             i: "{:.2f}".format(100 * v)
-            for i, v in enumerate(self._confusion_matrix.get_intersection_union_per_class()[0])
+            for i, v in enumerate(
+                self._confusion_matrix.get_intersection_union_per_class()[0]
+            )
         }
 
     def get_metrics(self, verbose=False) -> Dict[str, Any]:
-        """ Returns a dictionnary of all metrics and losses being tracked
-        """
+        """Returns a dictionnary of all metrics and losses being tracked"""
         metrics = super().get_metrics(verbose)
 
         metrics["{}_acc".format(self._stage)] = self._acc

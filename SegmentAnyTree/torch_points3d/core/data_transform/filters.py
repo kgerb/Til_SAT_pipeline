@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 import random
 from torch_points3d.core.data_transform.features import PCACompute, compute_planarity
 
@@ -61,7 +60,9 @@ class PlanarityFilter(object):
             return planarity > self.thresh
 
     def __repr__(self):
-        return "{}(thresh={}, is_leq={})".format(self.__class__.__name__, self.thresh, self.is_leq)
+        return "{}(thresh={}, is_leq={})".format(
+            self.__class__.__name__, self.thresh, self.is_leq
+        )
 
 
 class RandomFilter(object):

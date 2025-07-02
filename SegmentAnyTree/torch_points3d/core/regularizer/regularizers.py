@@ -37,7 +37,9 @@ class L1Regularizer(_Regularizer):
                 and "1.weight" not in model_param_name
                 and "bn" not in model_param_name
             ):
-                reg_loss_function += self.lambda_reg * L1Regularizer.__add_l1(var=model_param_value)
+                reg_loss_function += self.lambda_reg * L1Regularizer.__add_l1(
+                    var=model_param_value
+                )
         return reg_loss_function
 
     @staticmethod
@@ -47,7 +49,7 @@ class L1Regularizer(_Regularizer):
 
 class L2Regularizer(_Regularizer):
     """
-       L2 regularized loss
+    L2 regularized loss
     """
 
     def __init__(self, model, lambda_reg=0.01):
@@ -65,7 +67,9 @@ class L2Regularizer(_Regularizer):
                 and "1.weight" not in model_param_name
                 and "bn" not in model_param_name
             ):
-                reg_loss_function += self.lambda_reg * L2Regularizer.__add_l2(var=model_param_value)
+                reg_loss_function += self.lambda_reg * L2Regularizer.__add_l2(
+                    var=model_param_value
+                )
         return reg_loss_function
 
     @staticmethod
@@ -94,8 +98,14 @@ class ElasticNetRegularizer(_Regularizer):
         for model_param_name, model_param_value in self.model.named_parameters():
             if model_param_name.endswith("weight"):
                 reg_loss_function += self.lambda_reg * (
-                    ((1 - self.alpha_reg) * ElasticNetRegularizer.__add_l2(var=model_param_value))
-                    + (self.alpha_reg * ElasticNetRegularizer.__add_l1(var=model_param_value))
+                    (
+                        (1 - self.alpha_reg)
+                        * ElasticNetRegularizer.__add_l2(var=model_param_value)
+                    )
+                    + (
+                        self.alpha_reg
+                        * ElasticNetRegularizer.__add_l1(var=model_param_value)
+                    )
                 )
         return reg_loss_function
 
@@ -116,13 +126,19 @@ class GroupSparseLassoRegularizer(_Regularizer):
     def __init__(self, model, lambda_reg=0.01):
         super(GroupSparseLassoRegularizer, self).__init__(model=model)
         self.lambda_reg = lambda_reg
-        self.reg_l2_l1 = GroupLassoRegularizer(model=self.model, lambda_reg=self.lambda_reg)
+        self.reg_l2_l1 = GroupLassoRegularizer(
+            model=self.model, lambda_reg=self.lambda_reg
+        )
         self.reg_l1 = L1Regularizer(model=self.model, lambda_reg=self.lambda_reg)
 
     def regularized_param(self, param_weights, reg_loss_function):
         reg_loss_function = self.lambda_reg * (
-            self.reg_l2_l1.regularized_param(param_weights=param_weights, reg_loss_function=reg_loss_function)
-            + self.reg_l1.regularized_param(param_weights=param_weights, reg_loss_function=reg_loss_function)
+            self.reg_l2_l1.regularized_param(
+                param_weights=param_weights, reg_loss_function=reg_loss_function
+            )
+            + self.reg_l1.regularized_param(
+                param_weights=param_weights, reg_loss_function=reg_loss_function
+            )
         )
 
         return reg_loss_function
@@ -147,18 +163,23 @@ class GroupLassoRegularizer(_Regularizer):
         super(GroupLassoRegularizer, self).__init__(model=model)
         self.lambda_reg = lambda_reg
 
-    def regularized_param(self, param_weights, reg_loss_function, group_name="input_group"):
+    def regularized_param(
+        self, param_weights, reg_loss_function, group_name="input_group"
+    ):
         if group_name == "input_group":
-            reg_loss_function += self.lambda_reg * GroupLassoRegularizer.__inputs_groups_reg(
-                layer_weights=param_weights
+            reg_loss_function += (
+                self.lambda_reg
+                * GroupLassoRegularizer.__inputs_groups_reg(layer_weights=param_weights)
             )  # apply the group norm on the input value
         elif group_name == "hidden_group":
-            reg_loss_function += self.lambda_reg * GroupLassoRegularizer.__inputs_groups_reg(
-                layer_weights=param_weights
+            reg_loss_function += (
+                self.lambda_reg
+                * GroupLassoRegularizer.__inputs_groups_reg(layer_weights=param_weights)
             )  # apply the group norm on every hidden layer
         elif group_name == "bias_group":
-            reg_loss_function += self.lambda_reg * GroupLassoRegularizer.__bias_groups_reg(
-                bias_weights=param_weights
+            reg_loss_function += (
+                self.lambda_reg
+                * GroupLassoRegularizer.__bias_groups_reg(bias_weights=param_weights)
             )  # apply the group norm on the bias
         else:
             print(
@@ -171,12 +192,18 @@ class GroupLassoRegularizer(_Regularizer):
     def regularized_all_param(self, reg_loss_function):
         for model_param_name, model_param_value in self.model.named_parameters():
             if model_param_name.endswith("weight"):
-                reg_loss_function += self.lambda_reg * GroupLassoRegularizer.__inputs_groups_reg(
-                    layer_weights=model_param_value
+                reg_loss_function += (
+                    self.lambda_reg
+                    * GroupLassoRegularizer.__inputs_groups_reg(
+                        layer_weights=model_param_value
+                    )
                 )
             if model_param_name.endswith("bias"):
-                reg_loss_function += self.lambda_reg * GroupLassoRegularizer.__bias_groups_reg(
-                    bias_weights=model_param_value
+                reg_loss_function += (
+                    self.lambda_reg
+                    * GroupLassoRegularizer.__bias_groups_reg(
+                        bias_weights=model_param_value
+                    )
                 )
         return reg_loss_function
 
@@ -193,7 +220,9 @@ class GroupLassoRegularizer(_Regularizer):
 
     @staticmethod
     def __bias_groups_reg(bias_weights):
-        return GroupLassoRegularizer.__grouplasso_reg(groups=bias_weights, dim=-1)  # ou 0 i dont know yet
+        return GroupLassoRegularizer.__grouplasso_reg(
+            groups=bias_weights, dim=-1
+        )  # ou 0 i dont know yet
 
 
 class RegularizerTypes(Enum):

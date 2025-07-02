@@ -22,7 +22,9 @@ class _Instance(NamedTuple):
     def iou(self, other: "_Instance") -> float:
         assert self.scan_id == other.scan_id
         intersection = float(len(np.intersect1d(other.indices, self.indices)))
-        return intersection / float(len(other.indices) + len(self.indices) - intersection)
+        return intersection / float(
+            len(other.indices) + len(self.indices) - intersection
+        )
 
     def find_best_match(self, others: List["_Instance"]) -> Tuple[float, int]:
         ioumax = -np.inf
@@ -38,7 +40,9 @@ class _Instance(NamedTuple):
 class InstanceAPMeter:
     def __init__(self):
         self._pred_clusters = defaultdict(list)  # {classname: List[_Instance]}
-        self._gt_clusters = defaultdict(lambda: defaultdict(list))  # {classname:{scan_id: List[_Instance]}
+        self._gt_clusters = defaultdict(
+            lambda: defaultdict(list)
+        )  # {classname:{scan_id: List[_Instance]}
 
     def add(self, pred_clusters: List[_Instance], gt_clusters: List[_Instance]):
         for instance in pred_clusters:
@@ -93,7 +97,9 @@ class InstanceAPMeter:
         prec = {}
         ap = {}
         for classname in self._gt_clusters.keys():
-            rec[classname], prec[classname], ap[classname] = self._eval_cls(classname, iou_threshold)
+            rec[classname], prec[classname], ap[classname] = self._eval_cls(
+                classname, iou_threshold
+            )
 
         for i, classname in enumerate(self._gt_clusters.keys()):
             if classname not in self._pred_clusters:
@@ -105,8 +111,8 @@ class InstanceAPMeter:
 
 
 class PanopticTracker(SegmentationTracker):
-    """ Class that provides tracking of semantic segmentation as well as
-    instance segmentation """
+    """Class that provides tracking of semantic segmentation as well as
+    instance segmentation"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -130,10 +136,9 @@ class PanopticTracker(SegmentationTracker):
         iou_threshold=0.25,
         track_instances=True,
         min_cluster_points=10,
-        **kwargs
+        **kwargs,
     ):
-        """ Track metrics for panoptic segmentation
-        """
+        """Track metrics for panoptic segmentation"""
         self._iou_threshold = iou_threshold
         BaseTracker.track(self, model)
         outputs: PanopticResults = model.get_output()
@@ -152,9 +157,14 @@ class PanopticTracker(SegmentationTracker):
             return
 
         predicted_labels = outputs.semantic_logits.max(1)[1]
-        if torch.max(labels.instance_labels)>0:
+        if torch.max(labels.instance_labels) > 0:
             tp, fp, acc = self._compute_acc(
-                clusters, predicted_labels, labels, data.batch, labels.num_instances, iou_threshold
+                clusters,
+                predicted_labels,
+                labels,
+                data.batch,
+                labels.num_instances,
+                iou_threshold,
             )
             self._pos.add(tp)
             self._neg.add(fp)
@@ -163,7 +173,11 @@ class PanopticTracker(SegmentationTracker):
         # Track instances for AP
         if track_instances:
             pred_clusters = self._pred_instances_per_scan(
-                clusters, predicted_labels, outputs.cluster_scores, data.batch, self._scan_id_offset
+                clusters,
+                predicted_labels,
+                outputs.cluster_scores,
+                data.batch,
+                self._scan_id_offset,
             )
             gt_clusters = self._gt_instances_per_scan(
                 labels.instance_labels, labels.y, data.batch, self._scan_id_offset
@@ -189,12 +203,17 @@ class PanopticTracker(SegmentationTracker):
             self._rec[key] = value
 
     @staticmethod
-    def _compute_acc(clusters, predicted_labels, labels, batch, num_instances, iou_threshold):
-        """ Computes the ratio of True positives, False positives and accuracy
-        """
-        iou_values, gt_ids = instance_iou(clusters, labels.instance_labels, batch).max(1)
+    def _compute_acc(
+        clusters, predicted_labels, labels, batch, num_instances, iou_threshold
+    ):
+        """Computes the ratio of True positives, False positives and accuracy"""
+        iou_values, gt_ids = instance_iou(clusters, labels.instance_labels, batch).max(
+            1
+        )
         gt_ids += 1
-        instance_offsets = torch.cat((torch.tensor([0]).to(num_instances.device), num_instances.cumsum(-1)))
+        instance_offsets = torch.cat(
+            (torch.tensor([0]).to(num_instances.device), num_instances.cumsum(-1))
+        )
         tp = 0
         fp = 0
         for i, iou in enumerate(iou_values):
@@ -207,7 +226,9 @@ class PanopticTracker(SegmentationTracker):
             sample_idx = batch[clusters[i][0]]
             sample_mask = batch == sample_idx
             instance_offset = instance_offsets[sample_idx]
-            gt_mask = labels.instance_labels[sample_mask] == (gt_ids[i] - instance_offset)
+            gt_mask = labels.instance_labels[sample_mask] == (
+                gt_ids[i] - instance_offset
+            )
             gt_classes = labels.y[sample_mask][torch.nonzero(gt_mask, as_tuple=False)]
             gt_classes, counts = torch.unique(gt_classes, return_counts=True)
             gt_class = gt_classes[counts.max(-1)[1]]
@@ -228,10 +249,14 @@ class PanopticTracker(SegmentationTracker):
         return clusters
 
     @staticmethod
-    def _pred_instances_per_scan(clusters, predicted_labels, scores, batch, scan_id_offset):
+    def _pred_instances_per_scan(
+        clusters, predicted_labels, scores, batch, scan_id_offset
+    ):
         # Get sample index offset
         ones = torch.ones_like(batch)
-        sample_sizes = torch.cat((torch.tensor([0]).to(batch.device), scatter_add(ones, batch)))
+        sample_sizes = torch.cat(
+            (torch.tensor([0]).to(batch.device), scatter_add(ones, batch))
+        )
         offsets = sample_sizes.cumsum(dim=-1).cpu().numpy()
 
         # Build instance objects
@@ -242,7 +267,10 @@ class PanopticTracker(SegmentationTracker):
             indices = cl.cpu().numpy() - offsets[sample_idx]
             instances.append(
                 _Instance(
-                    classname=predicted_labels[cl[0]].item(), score=scores[i].item(), indices=indices, scan_id=scan_id
+                    classname=predicted_labels[cl[0]].item(),
+                    score=scores[i].item(),
+                    indices=indices,
+                    scan_id=scan_id,
                 )
             )
         return instances
@@ -258,7 +286,9 @@ class PanopticTracker(SegmentationTracker):
             num_instances = torch.max(instances_in_sample)
             scan_id = b + scan_id_offset
             for i in range(num_instances):
-                instance_indices = torch.where(instances_in_sample == i + 1)[0].cpu().numpy()
+                instance_indices = (
+                    torch.where(instances_in_sample == i + 1)[0].cpu().numpy()
+                )
                 instances.append(
                     _Instance(
                         classname=gt_labels_sample[instance_indices[0]].item(),
@@ -270,8 +300,7 @@ class PanopticTracker(SegmentationTracker):
         return instances
 
     def get_metrics(self, verbose=False) -> Dict[str, Any]:
-        """ Returns a dictionnary of all metrics and losses being tracked
-        """
+        """Returns a dictionnary of all metrics and losses being tracked"""
         metrics = super().get_metrics(verbose)
 
         metrics["{}_pos".format(self._stage)] = meter_value(self._pos)

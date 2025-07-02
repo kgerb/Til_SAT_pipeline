@@ -53,7 +53,10 @@ class Segmentation_MP(UnetBasedModel):
         self.output = F.log_softmax(x, dim=-1)
 
         if self.labels is not None:
-            self.loss_seg = F.nll_loss(self.output, self.labels, ignore_index=IGNORE_LABEL) + self.get_internal_loss()
+            self.loss_seg = (
+                F.nll_loss(self.output, self.labels, ignore_index=IGNORE_LABEL)
+                + self.get_internal_loss()
+            )
 
         return self.output
 

@@ -13,19 +13,19 @@ ROOT = os.path.join(DIR, "..")
 sys.path.insert(0, ROOT)
 
 # Import building function for model and dataset
-from torch_points3d.datasets.dataset_factory import instantiate_dataset, get_dataset_class
-from torch_points3d.models.model_factory import instantiate_model
+from torch_points3d.datasets.dataset_factory import (
+    instantiate_dataset,
+    get_dataset_class,
+)
 
 # Import BaseModel / BaseDataset for type checking
 from torch_points3d.models.base_model import BaseModel
-from torch_points3d.datasets.base_dataset import BaseDataset
 
 # Import from metrics
 from torch_points3d.metrics.colored_tqdm import Coloredtqdm as Ctq
 from torch_points3d.metrics.model_checkpoint import ModelCheckpoint
 
 # Utils import
-from torch_points3d.utils.colors import COLORS
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +47,12 @@ def run(model: BaseModel, dataset, device, output_path):
                 with torch.no_grad():
                     model.set_input(data, device)
                     model.forward()
-                predicted = {**predicted, **dataset.predict_original_samples(data, model.conv_type, model.get_output())}
+                predicted = {
+                    **predicted,
+                    **dataset.predict_original_samples(
+                        data, model.conv_type, model.get_output()
+                    ),
+                }
 
     save(output_path, predicted)
 
@@ -64,7 +69,9 @@ def main(cfg):
     torch.backends.cudnn.enabled = cfg.enable_cudnn
 
     # Checkpoint
-    checkpoint = ModelCheckpoint(cfg.checkpoint_dir, cfg.model_name, cfg.weight_name, strict=True)
+    checkpoint = ModelCheckpoint(
+        cfg.checkpoint_dir, cfg.model_name, cfg.weight_name, strict=True
+    )
 
     # Setup the dataset config
     # Generic config
@@ -81,14 +88,23 @@ def main(cfg):
             checkpoint.dataset_properties.update(key, value)
 
     # Create dataset and mdoel
-    model = checkpoint.create_model(checkpoint.dataset_properties, weight_name=cfg.weight_name)
+    model = checkpoint.create_model(
+        checkpoint.dataset_properties, weight_name=cfg.weight_name
+    )
     log.info(model)
-    log.info("Model size = %i", sum(param.numel() for param in model.parameters() if param.requires_grad))
+    log.info(
+        "Model size = %i",
+        sum(param.numel() for param in model.parameters() if param.requires_grad),
+    )
 
     # Set dataloaders
     dataset = instantiate_dataset(checkpoint.data_config)
     dataset.create_dataloaders(
-        model, cfg.batch_size, cfg.shuffle, cfg.num_workers, False,
+        model,
+        cfg.batch_size,
+        cfg.shuffle,
+        cfg.num_workers,
+        False,
     )
     log.info(dataset)
 

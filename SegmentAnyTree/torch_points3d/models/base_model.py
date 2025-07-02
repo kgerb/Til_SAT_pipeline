@@ -13,14 +13,15 @@ from torch_points3d.utils.enums import SchedulerUpdateOn
 
 from torch_points3d.core.regularizer import *
 from torch_points3d.core.losses import instantiate_loss_or_miner
-from torch_points3d.utils.config import is_dict
 from torch_points3d.utils.colors import colored_print, COLORS
 from .model_interface import TrackerInterface, DatasetInterface, CheckpointInterface
 
 log = logging.getLogger(__name__)
 
 
-class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointInterface):
+class BaseModel(
+    torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointInterface
+):
     """This class is an abstract base class (ABC) for models.
     To create a subclass, you need to implement the following five functions:
         -- <__init__>:                      initialize the class; first call BaseModel.__init__(self, opt).
@@ -49,7 +50,9 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
         self.loss_names = []
         self.visual_names = []
         self.output = None
-        self._conv_type = opt.conv_type  if hasattr(opt, 'conv_type') else None # Update to OmegaConv 2.0
+        self._conv_type = (
+            opt.conv_type if hasattr(opt, "conv_type") else None
+        )  # Update to OmegaConv 2.0
         self._optimizer: Optional[Optimizer] = None
         self._lr_scheduler: Optimizer[_LRScheduler] = None
         self._bn_scheduler = None
@@ -129,7 +132,7 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
     @conv_type.setter
     def conv_type(self, conv_type):
         self._conv_type = conv_type
-        
+
     def is_mixed_precision(self):
         return self._supports_mixed and self._enable_mixed
 
@@ -142,7 +145,11 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
 
     def load_state_dict_with_same_shape(self, weights, strict=False):
         model_state = self.state_dict()
-        filtered_weights = {k: v for k, v in weights.items() if k in model_state and v.size() == model_state[k].size()}
+        filtered_weights = {
+            k: v
+            for k, v in weights.items()
+            if k in model_state and v.size() == model_state[k].size()
+        }
         log.info("Loading weights:" + ", ".join(filtered_weights.keys()))
         self.load_state_dict(filtered_weights, strict=strict)
 
@@ -155,7 +162,9 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
                 log.warning("The path does not exist, it will not load any model")
             else:
                 log.info("load pretrained weights from {}".format(path_pretrained))
-                m = torch.load(path_pretrained, map_location="cpu")["models"][weight_name]
+                m = torch.load(path_pretrained, map_location="cpu")["models"][
+                    weight_name
+                ]
                 self.load_state_dict_with_same_shape(m, strict=False)
 
     def get_labels(self):
@@ -198,7 +207,9 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
         if hasattr(self, update_scheduler_on):
             update_scheduler_on = getattr(self, update_scheduler_on)
             if update_scheduler_on is None:
-                raise Exception("The function instantiate_optimizers doesn't look like called")
+                raise Exception(
+                    "The function instantiate_optimizers doesn't look like called"
+                )
 
             num_steps = 0
             if update_scheduler_on == SchedulerUpdateOn.ON_EPOCH.value:
@@ -211,7 +222,11 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
             for _ in range(num_steps):
                 scheduler.step()
         else:
-            raise Exception("The attributes {} should be defined within self".format(update_scheduler_on))
+            raise Exception(
+                "The attributes {} should be defined within self".format(
+                    update_scheduler_on
+                )
+            )
 
     def _do_scale_loss(self):
         orig_losses = {}
@@ -226,18 +241,26 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
         if self.is_mixed_precision():
             for loss_name, loss in orig_losses.items():
                 setattr(self, loss_name, loss)
-            self._grad_scale.unscale_(self._optimizer) # unscale gradients before clipping
+            self._grad_scale.unscale_(
+                self._optimizer
+            )  # unscale gradients before clipping
 
     def optimize_parameters(self, epoch, batch_size):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
 
-        with torch.cuda.amp.autocast(enabled=self.is_mixed_precision()): # enable autocasting if supported
-            self.forward(epoch=epoch)  # first call forward to calculate intermediate results
-        
-        orig_losses = self._do_scale_loss() # scale losses if needed
-        make_optimizer_step = self._manage_optimizer_zero_grad()  # Accumulate gradient if option is up
+        with torch.cuda.amp.autocast(
+            enabled=self.is_mixed_precision()
+        ):  # enable autocasting if supported
+            self.forward(
+                epoch=epoch
+            )  # first call forward to calculate intermediate results
+
+        orig_losses = self._do_scale_loss()  # scale losses if needed
+        make_optimizer_step = (
+            self._manage_optimizer_zero_grad()
+        )  # Accumulate gradient if option is up
         self.backward()  # calculate gradients
-        self._do_unscale_loss(orig_losses) # unscale losses to orig
+        self._do_unscale_loss(orig_losses)  # unscale losses to orig
 
         if self._grad_clip > 0:
             torch.nn.utils.clip_grad_value_(self.parameters(), self._grad_clip)
@@ -246,26 +269,36 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
             self._grad_scale.step(self._optimizer)  # update parameters
 
         if self._lr_scheduler:
-            self._do_scheduler_update("_update_lr_scheduler_on", self._lr_scheduler, epoch, batch_size)
+            self._do_scheduler_update(
+                "_update_lr_scheduler_on", self._lr_scheduler, epoch, batch_size
+            )
 
         if self._bn_scheduler:
-            self._do_scheduler_update("_update_bn_scheduler_on", self._bn_scheduler, epoch, batch_size)
+            self._do_scheduler_update(
+                "_update_bn_scheduler_on", self._bn_scheduler, epoch, batch_size
+            )
 
-        self._grad_scale.update() # update scaling
+        self._grad_scale.update()  # update scaling
         self._num_epochs = epoch
         self._num_batches += 1
         self._num_samples += batch_size
-        
+
     def optimize_parameters2(self, epoch, step, batch_size):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
 
-        with torch.cuda.amp.autocast(enabled=self.is_mixed_precision()): # enable autocasting if supported
-            self.forward(epoch=epoch, step=step, is_training=True)  # first call forward to calculate intermediate results
-        
-        orig_losses = self._do_scale_loss() # scale losses if needed
-        make_optimizer_step = self._manage_optimizer_zero_grad()  # Accumulate gradient if option is up
+        with torch.cuda.amp.autocast(
+            enabled=self.is_mixed_precision()
+        ):  # enable autocasting if supported
+            self.forward(
+                epoch=epoch, step=step, is_training=True
+            )  # first call forward to calculate intermediate results
+
+        orig_losses = self._do_scale_loss()  # scale losses if needed
+        make_optimizer_step = (
+            self._manage_optimizer_zero_grad()
+        )  # Accumulate gradient if option is up
         self.backward(epoch)  # calculate gradients
-        self._do_unscale_loss(orig_losses) # unscale losses to orig
+        self._do_unscale_loss(orig_losses)  # unscale losses to orig
 
         if self._grad_clip > 0:
             torch.nn.utils.clip_grad_value_(self.parameters(), self._grad_clip)
@@ -274,12 +307,16 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
             self._grad_scale.step(self._optimizer)  # update parameters
 
         if self._lr_scheduler:
-            self._do_scheduler_update("_update_lr_scheduler_on", self._lr_scheduler, epoch, batch_size)
+            self._do_scheduler_update(
+                "_update_lr_scheduler_on", self._lr_scheduler, epoch, batch_size
+            )
 
         if self._bn_scheduler:
-            self._do_scheduler_update("_update_bn_scheduler_on", self._bn_scheduler, epoch, batch_size)
+            self._do_scheduler_update(
+                "_update_bn_scheduler_on", self._bn_scheduler, epoch, batch_size
+            )
 
-        self._grad_scale.update() # update scaling
+        self._grad_scale.update()  # update scaling
         self._num_epochs = epoch
         self._num_batches += 1
         self._num_samples += batch_size
@@ -313,7 +350,9 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
         # LR Scheduler
         scheduler_opt = self.get_from_opt(config, ["training", "optim", "lr_scheduler"])
         if scheduler_opt:
-            update_lr_scheduler_on = config.get('update_lr_scheduler_on') # Update to OmegaConf 2.0
+            update_lr_scheduler_on = config.get(
+                "update_lr_scheduler_on"
+            )  # Update to OmegaConf 2.0
             if update_lr_scheduler_on:
                 self._update_lr_scheduler_on = update_lr_scheduler_on
             scheduler_opt.update_scheduler_on = self._update_lr_scheduler_on
@@ -321,9 +360,13 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
             self._add_scheduler("lr_scheduler", lr_scheduler)
 
         # BN Scheduler
-        bn_scheduler_opt = self.get_from_opt(config, ["training", "optim", "bn_scheduler"])
+        bn_scheduler_opt = self.get_from_opt(
+            config, ["training", "optim", "bn_scheduler"]
+        )
         if bn_scheduler_opt:
-            update_bn_scheduler_on = config.get('update_bn_scheduler_on') # update to OmegaConf 2.0
+            update_bn_scheduler_on = config.get(
+                "update_bn_scheduler_on"
+            )  # update to OmegaConf 2.0
             if update_bn_scheduler_on:
                 self._update_bn_scheduler_on = update_bn_scheduler_on
             bn_scheduler_opt.update_scheduler_on = self._update_bn_scheduler_on
@@ -331,24 +374,36 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
             self._add_scheduler("bn_scheduler", bn_scheduler)
 
         # Accumulated gradients
-        self._accumulated_gradient_step = self.get_from_opt(config, ["training", "optim", "accumulated_gradient"])
+        self._accumulated_gradient_step = self.get_from_opt(
+            config, ["training", "optim", "accumulated_gradient"]
+        )
         if self._accumulated_gradient_step:
             if self._accumulated_gradient_step > 1:
                 self._accumulated_gradient_count = 0
             else:
-                raise Exception("When set, accumulated_gradient option should be an integer greater than 1")
+                raise Exception(
+                    "When set, accumulated_gradient option should be an integer greater than 1"
+                )
 
         # Gradient clipping
-        self._grad_clip = self.get_from_opt(config, ["training", "optim", "grad_clip"], default_value=-1)
+        self._grad_clip = self.get_from_opt(
+            config, ["training", "optim", "grad_clip"], default_value=-1
+        )
 
         # Gradient Scaling
-        self._enable_mixed = self.get_from_opt(config, ["training", "enable_mixed"], default_value=False)
+        self._enable_mixed = self.get_from_opt(
+            config, ["training", "enable_mixed"], default_value=False
+        )
         self._enable_mixed = bool(self._enable_mixed)
         if self.is_mixed_precision() and not cuda_enabled:
-            log.warning("Mixed precision is not supported on this device, using default precision...")
+            log.warning(
+                "Mixed precision is not supported on this device, using default precision..."
+            )
             self._enable_mixed = False
         elif self._enable_mixed and not self._supports_mixed:
-            log.warning("Mixed precision is not supported on this model, using default precision...")
+            log.warning(
+                "Mixed precision is not supported on this model, using default precision..."
+            )
         elif self.is_mixed_precision():
             log.info("Model will use mixed precision")
 
@@ -378,9 +433,15 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
                             assert loss_value.dim() == 0
                             losses_global[loss_name].append(loss_value)
                         elif isinstance(loss_value, float):
-                            losses_global[loss_name].append(torch.tensor(loss_value).to(self.device))
+                            losses_global[loss_name].append(
+                                torch.tensor(loss_value).to(self.device)
+                            )
                         else:
-                            raise ValueError("Unsupported value type for a loss: {}".format(loss_value))
+                            raise ValueError(
+                                "Unsupported value type for a loss: {}".format(
+                                    loss_value
+                                )
+                            )
                 search_from_key(module._modules, losses_global)
 
         search_from_key(self._modules, losses_global)
@@ -484,9 +545,16 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
 
     def log_optimizers(self):
         colored_print(COLORS.Green, "Optimizer: {}".format(self._optimizer))
-        colored_print(COLORS.Green, "Learning Rate Scheduler: {}".format(self._lr_scheduler))
-        colored_print(COLORS.Green, "BatchNorm Scheduler: {}".format(self._bn_scheduler))
-        colored_print(COLORS.Green, "Accumulated gradients: {}".format(self._accumulated_gradient_step))
+        colored_print(
+            COLORS.Green, "Learning Rate Scheduler: {}".format(self._lr_scheduler)
+        )
+        colored_print(
+            COLORS.Green, "BatchNorm Scheduler: {}".format(self._bn_scheduler)
+        )
+        colored_print(
+            COLORS.Green,
+            "Accumulated gradients: {}".format(self._accumulated_gradient_step),
+        )
 
     def to(self, *args, **kwargs):
         super().to(*args, *kwargs)
@@ -511,14 +579,18 @@ class BaseModel(torch.nn.Module, TrackerInterface, DatasetInterface, CheckpointI
                 missing_keys.append(attr)
         if len(missing_keys):
             raise KeyError(
-                "Missing attributes in your data object: {}. The model will fail to forward.".format(missing_keys)
+                "Missing attributes in your data object: {}. The model will fail to forward.".format(
+                    missing_keys
+                )
             )
 
     def print_transforms(self):
         message = ""
         for attr in self.__dict__:
             if "transform" in attr:
-                message += "{}{} {}= {}\n".format(COLORS.IPurple, attr, COLORS.END_NO_TOKEN, getattr(self, attr))
+                message += "{}{} {}= {}\n".format(
+                    COLORS.IPurple, attr, COLORS.END_NO_TOKEN, getattr(self, attr)
+                )
         print(message)
 
 

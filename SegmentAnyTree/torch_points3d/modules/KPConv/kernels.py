@@ -1,7 +1,7 @@
 import torch
 from torch.nn.parameter import Parameter
 
-from .kernel_utils import kernel_point_optimization_debug, load_kernels
+from .kernel_utils import load_kernels
 from .losses import fitting_loss, repulsion_loss, permissive_loss
 from .convolution_ops import *
 from torch_points3d.models.base_model import BaseInternalLossModule
@@ -9,7 +9,11 @@ from torch_points3d.models.base_model import BaseInternalLossModule
 
 def add_ones(query_points, x, add_one):
     if add_one:
-        ones = torch.ones(query_points.shape[0], dtype=torch.float).unsqueeze(-1).to(query_points.device)
+        ones = (
+            torch.ones(query_points.shape[0], dtype=torch.float)
+            .unsqueeze(-1)
+            .to(query_points.device)
+        )
         if x is not None:
             x = torch.cat([ones.to(x.dtype), x], dim=-1)
         else:
@@ -45,7 +49,7 @@ class KPConvLayer(torch.nn.Module):
         aggregation_mode="sum",
         dimension=3,
         add_one=False,
-        **kwargs
+        **kwargs,
     ):
         super(KPConvLayer, self).__init__()
         self.kernel_radius = self._INFLUENCE_TO_RADIUS * point_influence
@@ -60,14 +64,23 @@ class KPConvLayer(torch.nn.Module):
 
         # Initial kernel extent for this layer
         K_points_numpy = load_kernels(
-            self.kernel_radius, n_kernel_points, num_kernels=1, dimension=dimension, fixed=fixed,
+            self.kernel_radius,
+            n_kernel_points,
+            num_kernels=1,
+            dimension=dimension,
+            fixed=fixed,
         )
 
         self.K_points = Parameter(
-            torch.from_numpy(K_points_numpy.reshape((n_kernel_points, dimension))).to(torch.float), requires_grad=False,
+            torch.from_numpy(K_points_numpy.reshape((n_kernel_points, dimension))).to(
+                torch.float
+            ),
+            requires_grad=False,
         )
 
-        weights = torch.empty([n_kernel_points, self.num_inputs, num_outputs], dtype=torch.float)
+        weights = torch.empty(
+            [n_kernel_points, self.num_inputs, num_outputs], dtype=torch.float
+        )
         torch.nn.init.xavier_normal_(weights)
         self.weight = Parameter(weights)
 
@@ -94,13 +107,16 @@ class KPConvLayer(torch.nn.Module):
         return new_feat
 
     def __repr__(self):
-        return "KPConvLayer(InF: %i, OutF: %i, kernel_pts: %i, radius: %.2f, KP_influence: %s, Add_one: %s)" % (
-            self.num_inputs,
-            self.num_outputs,
-            self.n_kernel_points,
-            self.kernel_radius,
-            self.KP_influence,
-            self.add_one,
+        return (
+            "KPConvLayer(InF: %i, OutF: %i, kernel_pts: %i, radius: %.2f, KP_influence: %s, Add_one: %s)"
+            % (
+                self.num_inputs,
+                self.num_outputs,
+                self.n_kernel_points,
+                self.kernel_radius,
+                self.KP_influence,
+                self.add_one,
+            )
         )
 
 
@@ -139,7 +155,7 @@ class KPConvDeformableLayer(BaseInternalLossModule):
         modulated=False,
         loss_mode="fitting",
         add_one=False,
-        **kwargs
+        **kwargs,
     ):
         super(KPConvDeformableLayer, self).__init__()
         self.kernel_radius = self._INFLUENCE_TO_RADIUS * point_influence
@@ -152,15 +168,26 @@ class KPConvDeformableLayer(BaseInternalLossModule):
         self.n_kernel_points = n_kernel_points
         self.aggregation_mode = aggregation_mode
         self.modulated = modulated
-        self.internal_losses = {self.PERMISSIVE_LOSS_KEY: 0.0, self.FITTING_LOSS_KEY: 0.0, self.REPULSION_LOSS_KEY: 0.0}
+        self.internal_losses = {
+            self.PERMISSIVE_LOSS_KEY: 0.0,
+            self.FITTING_LOSS_KEY: 0.0,
+            self.REPULSION_LOSS_KEY: 0.0,
+        }
         self.loss_mode = loss_mode
 
         # Initial kernel extent for this layer
         K_points_numpy = load_kernels(
-            self.kernel_radius, n_kernel_points, num_kernels=1, dimension=dimension, fixed=fixed,
+            self.kernel_radius,
+            n_kernel_points,
+            num_kernels=1,
+            dimension=dimension,
+            fixed=fixed,
         )
         self.K_points = Parameter(
-            torch.from_numpy(K_points_numpy.reshape((n_kernel_points, dimension))).to(torch.float), requires_grad=False,
+            torch.from_numpy(K_points_numpy.reshape((n_kernel_points, dimension))).to(
+                torch.float
+            ),
+            requires_grad=False,
         )
 
         # Create independant weight for the first convolution and a bias term as no batch normalization happen
@@ -168,13 +195,17 @@ class KPConvDeformableLayer(BaseInternalLossModule):
             offset_dim = (dimension + 1) * self.n_kernel_points
         else:
             offset_dim = dimension * self.n_kernel_points
-        offset_weights = torch.empty([n_kernel_points, self.num_inputs, offset_dim], dtype=torch.float)
+        offset_weights = torch.empty(
+            [n_kernel_points, self.num_inputs, offset_dim], dtype=torch.float
+        )
         torch.nn.init.xavier_normal_(offset_weights)
         self.offset_weights = Parameter(offset_weights)
         self.offset_bias = Parameter(torch.zeros(offset_dim, dtype=torch.float))
 
         # Main deformable weights
-        weights = torch.empty([n_kernel_points, self.num_inputs, num_outputs], dtype=torch.float)
+        weights = torch.empty(
+            [n_kernel_points, self.num_inputs, num_outputs], dtype=torch.float
+        )
         torch.nn.init.xavier_normal_(weights)
         self.weight = Parameter(weights)
 
@@ -209,7 +240,9 @@ class KPConvDeformableLayer(BaseInternalLossModule):
             offsets = offsets.reshape((-1, self.n_kernel_points, points_dim))
 
             # Get modulations
-            modulations = 2 * torch.nn.functional.sigmoid(offset_feat[:, points_dim * self.n_kernel_points :])
+            modulations = 2 * torch.nn.functional.sigmoid(
+                offset_feat[:, points_dim * self.n_kernel_points :]
+            )
         else:
             # Get offset (in normalized scale) from features
             offsets = offset_feat.reshape((-1, self.n_kernel_points, points_dim))
@@ -233,13 +266,20 @@ class KPConvDeformableLayer(BaseInternalLossModule):
         )
 
         if self.loss_mode == "fitting":
-            self.internal_losses[self.FITTING_LOSS_KEY] = fitting_loss(sq_distances, self.kernel_radius)
-            self.internal_losses[self.REPULSION_LOSS_KEY] = repulsion_loss(K_points_deformed, self.point_influence)
+            self.internal_losses[self.FITTING_LOSS_KEY] = fitting_loss(
+                sq_distances, self.kernel_radius
+            )
+            self.internal_losses[self.REPULSION_LOSS_KEY] = repulsion_loss(
+                K_points_deformed, self.point_influence
+            )
         elif self.loss_mode == "permissive":
-            self.internal_losses[self.PERMISSIVE_LOSS_KEY] = permissive_loss(K_points_deformed, self.kernel_radius)
+            self.internal_losses[self.PERMISSIVE_LOSS_KEY] = permissive_loss(
+                K_points_deformed, self.kernel_radius
+            )
         else:
             raise NotImplementedError(
-                "Loss mode %s not recognised. Only permissive and fitting are valid" % self.loss_mode
+                "Loss mode %s not recognised. Only permissive and fitting are valid"
+                % self.loss_mode
             )
         return new_feat
 
@@ -247,10 +287,13 @@ class KPConvDeformableLayer(BaseInternalLossModule):
         return self.internal_losses
 
     def __repr__(self):
-        return "KPConvDeformableLayer(InF: %i, OutF: %i, kernel_pts: %i, radius: %.2f, KP_influence: %s)" % (
-            self.num_inputs,
-            self.num_outputs,
-            self.n_kernel_points,
-            self.kernel_radius,
-            self.KP_influence,
+        return (
+            "KPConvDeformableLayer(InF: %i, OutF: %i, kernel_pts: %i, radius: %.2f, KP_influence: %s)"
+            % (
+                self.num_inputs,
+                self.num_outputs,
+                self.n_kernel_points,
+                self.kernel_radius,
+                self.KP_influence,
+            )
         )

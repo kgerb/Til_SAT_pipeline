@@ -1,18 +1,13 @@
 import os
 import os.path as osp
-import shutil
 import json
 import torch
-from glob import glob
-import sys
 import csv
 import logging
 import numpy as np
-from plyfile import PlyData, PlyElement
-from torch_geometric.data import Data, InMemoryDataset, download_url, extract_zip
-import torch_geometric.transforms as T
+from plyfile import PlyData
+from torch_geometric.data import Data, InMemoryDataset, download_url
 import multiprocessing
-import pandas as pd
 
 import tempfile
 import urllib
@@ -90,7 +85,28 @@ URLS_METADATA = [
     "https://raw.githubusercontent.com/facebookresearch/votenet/master/scannet/meta_data/scannetv2_test.txt",
     "https://raw.githubusercontent.com/facebookresearch/votenet/master/scannet/meta_data/scannetv2_val.txt",
 ]
-VALID_CLASS_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39]
+VALID_CLASS_IDS = [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    14,
+    16,
+    24,
+    28,
+    33,
+    34,
+    36,
+    39,
+]
 
 SCANNET_COLOR_MAP = {
     0: (0.0, 0.0, 0.0),
@@ -219,7 +235,7 @@ def download_label_map(out_dir):
 
 
 def represents_int(s):
-    """ if string s represents an int. """
+    """if string s represents an int."""
     try:
         int(s)
         return True
@@ -278,7 +294,9 @@ def read_aggregation(filename):
         data = json.load(f)
         num_objects = len(data["segGroups"])
         for i in range(num_objects):
-            object_id = data["segGroups"][i]["objectId"] + 1  # instance ids should be 1-indexed
+            object_id = (
+                data["segGroups"][i]["objectId"] + 1
+            )  # instance ids should be 1-indexed
             label = data["segGroups"][i]["label"]
             segs = data["segGroups"][i]["segments"]
             object_id_to_segs[object_id] = segs
@@ -310,14 +328,18 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
     instance label as 1-#instance,
     box as (cx,cy,cz,dx,dy,dz,semantic_label)
     """
-    label_map = read_label_mapping(label_map_file, label_from="raw_category", label_to="nyu40id")
+    label_map = read_label_mapping(
+        label_map_file, label_from="raw_category", label_to="nyu40id"
+    )
     mesh_vertices = read_mesh_vertices_rgb(mesh_file)
 
     # Load scene axis alignment matrix
     lines = open(meta_file).readlines()
     for line in lines:
         if "axisAlignment" in line:
-            axis_align_matrix = [float(x) for x in line.rstrip().strip("axisAlignment = ").split(" ")]
+            axis_align_matrix = [
+                float(x) for x in line.rstrip().strip("axisAlignment = ").split(" ")
+            ]
             break
     axis_align_matrix = np.array(axis_align_matrix).reshape((4, 4))
     pts = np.ones((mesh_vertices.shape[0], 4))
@@ -448,17 +470,25 @@ class Scannet(InMemoryDataset):
         donotcare_class_ids=[],
         max_num_point=None,
         process_workers=4,
-        types=[".txt", "_vh_clean_2.ply", "_vh_clean_2.0.010000.segs.json", ".aggregation.json"],
+        types=[
+            ".txt",
+            "_vh_clean_2.ply",
+            "_vh_clean_2.0.010000.segs.json",
+            ".aggregation.json",
+        ],
         normalize_rgb=True,
         is_test=False,
     ):
-
         assert self.SPLITS == ["train", "val", "test"]
         if not isinstance(donotcare_class_ids, list):
-            raise Exception("donotcare_class_ids should be list with indices of class to ignore")
+            raise Exception(
+                "donotcare_class_ids should be list with indices of class to ignore"
+            )
         self.donotcare_class_ids = donotcare_class_ids
 
-        self.valid_class_idx = [idx for idx in self.VALID_CLASS_IDS if idx not in donotcare_class_ids]
+        self.valid_class_idx = [
+            idx for idx in self.VALID_CLASS_IDS if idx not in donotcare_class_ids
+        ]
 
         assert version in ["v2", "v1"], "The version should be either v1 or v2"
         self.version = version
@@ -478,7 +508,9 @@ class Scannet(InMemoryDataset):
         elif split == "test":
             path = self.processed_paths[2]
         else:
-            raise ValueError((f"Split {split} found, but expected either " "train, val, or test"))
+            raise ValueError(
+                (f"Split {split} found, but expected either train, val, or test")
+            )
 
         self.data, self.slices = torch.load(path)
 
@@ -509,10 +541,13 @@ class Scannet(InMemoryDataset):
         if torch.is_tensor(id_scan):
             id_scan = int(id_scan.item())
         assert stage in self.SPLITS
-        mapping_idx_to_scan_names = getattr(self, "MAPPING_IDX_TO_SCAN_{}_NAMES".format(stage.upper()))
+        mapping_idx_to_scan_names = getattr(
+            self, "MAPPING_IDX_TO_SCAN_{}_NAMES".format(stage.upper())
+        )
         scan_name = mapping_idx_to_scan_names[id_scan]
         path_to_raw_scan = os.path.join(
-            self.processed_raw_paths[self.SPLITS.index(stage.lower())], "{}.pt".format(scan_name)
+            self.processed_raw_paths[self.SPLITS.index(stage.lower())],
+            "{}.pt".format(scan_name),
         )
         data = torch.load(path_to_raw_scan)
         data.scan_name = scan_name
@@ -536,7 +571,9 @@ class Scannet(InMemoryDataset):
 
     @property
     def processed_raw_paths(self):
-        processed_raw_paths = [os.path.join(self.processed_dir, "raw_{}".format(s)) for s in Scannet.SPLITS]
+        processed_raw_paths = [
+            os.path.join(self.processed_dir, "raw_{}".format(s)) for s in Scannet.SPLITS
+        ]
         for p in processed_raw_paths:
             if not os.path.exists(p):
                 os.makedirs(p)
@@ -576,7 +613,12 @@ class Scannet(InMemoryDataset):
                 if file_type in FILETYPES_TEST:
                     file_types_test.append(file_type)
         download_label_map(self.raw_dir)
-        log.info("WARNING: You are downloading all ScanNet " + RELEASE_NAME + " scans of type " + file_types[0])
+        log.info(
+            "WARNING: You are downloading all ScanNet "
+            + RELEASE_NAME
+            + " scans of type "
+            + file_types[0]
+        )
         log.info(
             "Note that existing scan directories will be skipped. Delete partially downloaded directories to re-download."
         )
@@ -593,7 +635,12 @@ class Scannet(InMemoryDataset):
         download_release(release_scans, out_dir_scans, file_types, use_v1_sens=True)
         if self.version == "v2":
             download_label_map(self.raw_dir)
-            download_release(release_test_scans, out_dir_test_scans, file_types_test, use_v1_sens=True)
+            download_release(
+                release_test_scans,
+                out_dir_test_scans,
+                file_types_test,
+                use_v1_sens=True,
+            )
             # download_file(os.path.join(BASE_URL, RELEASE_TASKS, TEST_FRAMES_FILE[0]), os.path.join(out_dir_tasks, TEST_FRAMES_FILE[0]))
 
     def download(self):
@@ -637,13 +684,19 @@ class Scannet(InMemoryDataset):
     ):
         mesh_file = osp.join(scannet_dir, scan_name, scan_name + "_vh_clean_2.ply")
         agg_file = osp.join(scannet_dir, scan_name, scan_name + ".aggregation.json")
-        seg_file = osp.join(scannet_dir, scan_name, scan_name + "_vh_clean_2.0.010000.segs.json")
+        seg_file = osp.join(
+            scannet_dir, scan_name, scan_name + "_vh_clean_2.0.010000.segs.json"
+        )
         meta_file = osp.join(
             scannet_dir, scan_name, scan_name + ".txt"
         )  # includes axisAlignment info for the train set scans.
-        mesh_vertices, semantic_labels, instance_labels, instance_bboxes, instance2semantic = export(
-            mesh_file, agg_file, seg_file, meta_file, label_map_file, None
-        )
+        (
+            mesh_vertices,
+            semantic_labels,
+            instance_labels,
+            instance_bboxes,
+            instance2semantic,
+        ) = export(mesh_file, agg_file, seg_file, meta_file, label_map_file, None)
 
         # Discard unwanted classes
         mask = np.logical_not(np.in1d(semantic_labels, donotcare_class_ids))
@@ -687,8 +740,13 @@ class Scannet(InMemoryDataset):
             f.close()
 
         for idx_split, split in enumerate(Scannet.SPLITS):
-            idx_mapping = {idx: scan_name for idx, scan_name in enumerate(self.scan_names[idx_split])}
-            setattr(self, "MAPPING_IDX_TO_SCAN_{}_NAMES".format(split.upper()), idx_mapping)
+            idx_mapping = {
+                idx: scan_name
+                for idx, scan_name in enumerate(self.scan_names[idx_split])
+            }
+            setattr(
+                self, "MAPPING_IDX_TO_SCAN_{}_NAMES".format(split.upper()), idx_mapping
+            )
 
     @staticmethod
     def process_func(
@@ -715,7 +773,9 @@ class Scannet(InMemoryDataset):
                 obj_class_ids,
                 normalize_rgb,
             )
-        log.info("{}/{}| scan_name: {}, data: {}".format(id_scan, total, scan_name, data))
+        log.info(
+            "{}/{}| scan_name: {}, data: {}".format(id_scan, total, scan_name, data)
+        )
 
         data["id_scan"] = torch.tensor([id_scan])
         return cT.SaveOriginalPosId()(data)
@@ -728,8 +788,12 @@ class Scannet(InMemoryDataset):
         scannet_dir = osp.join(self.raw_dir, "scans")
         for i, (scan_names, split) in enumerate(zip(self.scan_names, self.SPLITS)):
             if not os.path.exists(self.processed_paths[i]):
-                mapping_idx_to_scan_names = getattr(self, "MAPPING_IDX_TO_SCAN_{}_NAMES".format(split.upper()))
-                scannet_dir = osp.join(self.raw_dir, "scans" if split in ["train", "val"] else "scans_test")
+                mapping_idx_to_scan_names = getattr(
+                    self, "MAPPING_IDX_TO_SCAN_{}_NAMES".format(split.upper())
+                )
+                scannet_dir = osp.join(
+                    self.raw_dir, "scans" if split in ["train", "val"] else "scans_test"
+                )
                 total = len(scan_names)
                 args = [
                     (
@@ -747,7 +811,9 @@ class Scannet(InMemoryDataset):
                     for id, scan_name in enumerate(scan_names)
                 ]
                 if self.use_multiprocessing:
-                    with multiprocessing.get_context("spawn").Pool(processes=self.process_workers) as pool:
+                    with multiprocessing.get_context("spawn").Pool(
+                        processes=self.process_workers
+                    ) as pool:
                         datas = pool.starmap(Scannet.process_func, args)
                 else:
                     datas = []
@@ -758,7 +824,9 @@ class Scannet(InMemoryDataset):
                 for data in datas:
                     id_scan = int(data.id_scan.item())
                     scan_name = mapping_idx_to_scan_names[id_scan]
-                    path_to_raw_scan = os.path.join(self.processed_raw_paths[i], "{}.pt".format(scan_name))
+                    path_to_raw_scan = os.path.join(
+                        self.processed_raw_paths[i], "{}.pt".format(scan_name)
+                    )
                     torch.save(data, path_to_raw_scan)
 
                 if self.pre_transform:
@@ -815,10 +883,14 @@ class ScannetDataset(BaseDataset):
 
         use_instance_labels: bool = dataset_opt.use_instance_labels
         use_instance_bboxes: bool = dataset_opt.use_instance_bboxes
-        donotcare_class_ids: [] = list(dataset_opt.get('donotcare_class_ids', []))
-        max_num_point: int = dataset_opt.get('max_num_point', None)
-        process_workers: int = dataset_opt.process_workers if hasattr(dataset_opt,'process_workers') else 0
-        is_test: bool = dataset_opt.get('is_test', False)
+        donotcare_class_ids: [] = list(dataset_opt.get("donotcare_class_ids", []))
+        max_num_point: int = dataset_opt.get("max_num_point", None)
+        process_workers: int = (
+            dataset_opt.process_workers
+            if hasattr(dataset_opt, "process_workers")
+            else 0
+        )
+        is_test: bool = dataset_opt.get("is_test", False)
 
         self.train_dataset = Scannet(
             self._data_path,
@@ -875,8 +947,13 @@ class ScannetDataset(BaseDataset):
         Returns:
             [BaseTracker] -- tracker
         """
-        from torch_points3d.metrics.scannet_segmentation_tracker import ScannetSegmentationTracker
+        from torch_points3d.metrics.scannet_segmentation_tracker import (
+            ScannetSegmentationTracker,
+        )
 
         return ScannetSegmentationTracker(
-            self, wandb_log=wandb_log, use_tensorboard=tensorboard_log, ignore_label=IGNORE_LABEL
+            self,
+            wandb_log=wandb_log,
+            use_tensorboard=tensorboard_log,
+            ignore_label=IGNORE_LABEL,
         )

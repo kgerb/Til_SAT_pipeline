@@ -3,7 +3,6 @@ from omegaconf import DictConfig, OmegaConf
 import logging
 
 from torch_points3d.applications.modelfactory import ModelFactory
-from torch_points3d.core.common_modules import FastBatchNorm1d
 from torch_points3d.modules.KPConv import *
 from torch_points3d.core.base_conv.partial_dense import *
 from torch_points3d.models.base_architectures.unet import UnwrappedUnetBasedModel
@@ -20,9 +19,14 @@ log = logging.getLogger(__name__)
 
 
 def KPConv(
-    architecture: str = None, input_nc: int = None, num_layers: int = None, config: DictConfig = None, *args, **kwargs
+    architecture: str = None,
+    input_nc: int = None,
+    num_layers: int = None,
+    config: DictConfig = None,
+    *args,
+    **kwargs,
 ):
-    """ Create a KPConv backbone model based on the architecture proposed in
+    """Create a KPConv backbone model based on the architecture proposed in
     https://arxiv.org/abs/1904.08889
 
     Parameters
@@ -43,7 +47,11 @@ def KPConv(
         Custom config, overrides the num_layers and architecture parameters
     """
     factory = KPConvFactory(
-        architecture=architecture, num_layers=num_layers, input_nc=input_nc, config=config, **kwargs
+        architecture=architecture,
+        num_layers=num_layers,
+        input_nc=input_nc,
+        config=config,
+        **kwargs,
     )
     return factory.build()
 
@@ -53,7 +61,9 @@ class KPConvFactory(ModelFactory):
         if self._config:
             model_config = self._config
         else:
-            path_to_model = os.path.join(PATH_TO_CONFIG, "unet_{}.yaml".format(self.num_layers))
+            path_to_model = os.path.join(
+                PATH_TO_CONFIG, "unet_{}.yaml".format(self.num_layers)
+            )
             model_config = OmegaConf.load(path_to_model)
         ModelFactory.resolve_model(model_config, self.num_features, self._kwargs)
         modules_lib = sys.modules[__name__]
@@ -63,7 +73,9 @@ class KPConvFactory(ModelFactory):
         if self._config:
             model_config = self._config
         else:
-            path_to_model = os.path.join(PATH_TO_CONFIG, "encoder_{}.yaml".format(self.num_layers))
+            path_to_model = os.path.join(
+                PATH_TO_CONFIG, "encoder_{}.yaml".format(self.num_layers)
+            )
             model_config = OmegaConf.load(path_to_model)
         ModelFactory.resolve_model(model_config, self.num_features, self._kwargs)
         modules_lib = sys.modules[__name__]
@@ -86,7 +98,11 @@ class BaseKPConv(UnwrappedUnetBasedModel):
         if "output_nc" in kwargs:
             self._has_mlp_head = True
             self._output_nc = kwargs["output_nc"]
-            self.mlp = MLP([default_output_nc, self.output_nc], activation=torch.nn.LeakyReLU(0.2), bias=False)
+            self.mlp = MLP(
+                [default_output_nc, self.output_nc],
+                activation=torch.nn.LeakyReLU(0.2),
+                bias=False,
+            )
 
     @property
     def has_mlp_head(self):
@@ -175,7 +191,9 @@ class KPConvUnet(BaseKPConv):
             - x [N, output_nc]
         """
         self._set_input(data)
-        data = super().forward(self.input, precomputed_down=self.pre_computed, precomputed_up=self.upsample)
+        data = super().forward(
+            self.input, precomputed_down=self.pre_computed, precomputed_up=self.upsample
+        )
         if self.has_mlp_head:
             data.x = self.mlp(data.x)
         return data

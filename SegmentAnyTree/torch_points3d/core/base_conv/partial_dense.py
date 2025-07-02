@@ -1,19 +1,8 @@
 from typing import *
 import torch
-from torch.nn import (
-    Linear as Lin,
-    ReLU,
-    LeakyReLU,
-    BatchNorm1d as BN,
-    Dropout,
-)
 from torch_geometric.nn import (
-    knn_interpolate,
-    fps,
-    radius,
     global_max_pool,
     global_mean_pool,
-    knn,
 )
 from torch_geometric.data import Batch
 
@@ -33,16 +22,19 @@ def copy_from_to(data, batch):
 
 
 class BasePartialDenseConvolutionDown(BaseConvolution):
-
     CONV_TYPE = ConvolutionFormat.PARTIAL_DENSE.value
 
     def __init__(self, sampler, neighbour_finder, *args, **kwargs):
-        super(BasePartialDenseConvolutionDown, self).__init__(sampler, neighbour_finder, *args, **kwargs)
+        super(BasePartialDenseConvolutionDown, self).__init__(
+            sampler, neighbour_finder, *args, **kwargs
+        )
 
         self._index = kwargs.get("index", None)
 
-    def conv(self, x, pos, x_neighbour, pos_centered_neighbour, idx_neighbour, idx_sampler):
-        """ Generic down convolution for partial dense data
+    def conv(
+        self, x, pos, x_neighbour, pos_centered_neighbour, idx_neighbour, idx_sampler
+    ):
+        """Generic down convolution for partial dense data
 
         Arguments:
             x [N, C] -- features
@@ -64,16 +56,24 @@ class BasePartialDenseConvolutionDown(BaseConvolution):
 
         idx_neighbour = self.neighbour_finder(pos, pos, batch_x=batch, batch_y=batch)
 
-        shadow_x = torch.full((1,) + x.shape[1:], self.shadow_features_fill).to(x.device)
-        shadow_points = torch.full((1,) + pos.shape[1:], self.shadow_points_fill_).to(x.device)
+        shadow_x = torch.full((1,) + x.shape[1:], self.shadow_features_fill).to(
+            x.device
+        )
+        shadow_points = torch.full((1,) + pos.shape[1:], self.shadow_points_fill_).to(
+            x.device
+        )
 
         x = torch.cat([x, shadow_x], dim=0)
         pos = torch.cat([pos, shadow_points], dim=0)
 
         x_neighbour = x[idx_neighbour]
-        pos_centered_neighbour = pos[idx_neighbour] - pos[:-1].unsqueeze(1)  # Centered the points, no shadow point
+        pos_centered_neighbour = pos[idx_neighbour] - pos[:-1].unsqueeze(
+            1
+        )  # Centered the points, no shadow point
 
-        batch_obj.x = self.conv(x, pos, x_neighbour, pos_centered_neighbour, idx_neighbour, idx_sampler)
+        batch_obj.x = self.conv(
+            x, pos, x_neighbour, pos_centered_neighbour, idx_neighbour, idx_sampler
+        )
 
         batch_obj.pos = pos[idx_sampler]
         batch_obj.batch = batch[idx_sampler]
@@ -101,7 +101,7 @@ class GlobalPartialDenseBaseModule(torch.nn.Module):
 
 
 class FPModule_PD(BaseModule):
-    """ Upsampling module from PointNet++
+    """Upsampling module from PointNet++
     Arguments:
         k [int] -- number of nearest neighboors used for the interpolation
         up_conv_nn [List[int]] -- list of feature sizes for the uplconv mlp
@@ -132,7 +132,9 @@ class FPModule_PD(BaseModule):
             pre_data = None
 
         if has_innermost:
-            x = torch.gather(data.x, 0, data_skip.batch.unsqueeze(-1).repeat((1, data.x.shape[-1])))
+            x = torch.gather(
+                data.x, 0, data_skip.batch.unsqueeze(-1).repeat((1, data.x.shape[-1]))
+            )
         else:
             x = self.upsample_op(data, data_skip, precomputed=pre_data)
 

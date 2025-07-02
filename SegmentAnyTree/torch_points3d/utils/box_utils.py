@@ -6,7 +6,7 @@ from .geometry import euler_angles_to_rotation_matrix
 
 
 def box_corners_from_param(box_size, heading_angle, center):
-    """ Generates box corners from a parameterised box.
+    """Generates box corners from a parameterised box.
     box_size is array(size_x,size_y,size_z), heading_angle is radius clockwise from pos x axis, center is xyz of box center
         output (8,3) array for 3D box corners
     """
@@ -14,9 +14,15 @@ def box_corners_from_param(box_size, heading_angle, center):
     if torch.is_tensor(box_size):
         box_size = box_size.float()
     l, w, h = box_size
-    x_corners = torch.tensor([-l / 2, l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2])
-    y_corners = torch.tensor([-w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2, w / 2])
-    z_corners = torch.tensor([-h / 2, -h / 2, -h / 2, -h / 2, h / 2, h / 2, h / 2, h / 2])
+    x_corners = torch.tensor(
+        [-l / 2, l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2]
+    )
+    y_corners = torch.tensor(
+        [-w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2, w / 2]
+    )
+    z_corners = torch.tensor(
+        [-h / 2, -h / 2, -h / 2, -h / 2, h / 2, h / 2, h / 2, h / 2]
+    )
     corners_3d = R @ torch.stack([x_corners, y_corners, z_corners])
     corners_3d[0, :] = corners_3d[0, :] + center[0]
     corners_3d[1, :] = corners_3d[1, :] + center[1]
@@ -26,7 +32,7 @@ def box_corners_from_param(box_size, heading_angle, center):
 
 
 def nms_samecls(boxes, classes, scores, overlap_threshold=0.25):
-    """ Returns the list of boxes that are kept after nms.
+    """Returns the list of boxes that are kept after nms.
     A box is suppressed only if it overlaps with
     another box of the same class that has a higher score
 
@@ -80,13 +86,15 @@ def nms_samecls(boxes, classes, scores, overlap_threshold=0.25):
         o = inter / (area[i] + area[I[: last - 1]] - inter)
         o = o * (cls1 == cls2)
 
-        I = np.delete(I, np.concatenate(([last - 1], np.where(o > overlap_threshold)[0])))
+        I = np.delete(
+            I, np.concatenate(([last - 1], np.where(o > overlap_threshold)[0]))
+        )
 
     return pick
 
 
 def box3d_iou(corners1, corners2):
-    """ Compute 3D bounding box IoU.
+    """Compute 3D bounding box IoU.
 
     Input:
         corners1: array (8,3), assume up direction is Z
@@ -110,7 +118,7 @@ def box3d_iou(corners1, corners2):
 
 
 def box3d_vol(corners):
-    """ corners: (8,3). No order required"""
+    """corners: (8,3). No order required"""
     corners = np.asarray(corners)
     a = np.sqrt(np.sum((corners[0, :] - corners[1, :]) ** 2))
     b = np.sqrt(np.sum((corners[1, :] - corners[2, :]) ** 2))
@@ -119,9 +127,9 @@ def box3d_vol(corners):
 
 
 def intersection_area(p1, p2):
-    """ Compute area of two convex hull's intersection area.
-        p1,p2 are a list of (x,y) tuples of hull vertices.
-        return intersection volume
+    """Compute area of two convex hull's intersection area.
+    p1,p2 are a list of (x,y) tuples of hull vertices.
+    return intersection volume
     """
     assert len(p1[0]) == 2 and len(p2[0]) == 2
     inter_p = polygon_clip(p1, p2)
@@ -133,19 +141,19 @@ def intersection_area(p1, p2):
 
 
 def polygon_clip(subjectPolygon, clipPolygon):
-    """ Clip a polygon with another polygon.
+    """Clip a polygon with another polygon.
 
-   Ref: https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#Python
+    Ref: https://rosettacode.org/wiki/Sutherland-Hodgman_polygon_clipping#Python
 
-   Args:
-     subjectPolygon: a list of (x,y) 2d points, any polygon.
-     clipPolygon: a list of (x,y) 2d points, has to be *convex*
-   Note:
-     **points have to be counter-clockwise ordered**
+    Args:
+      subjectPolygon: a list of (x,y) 2d points, any polygon.
+      clipPolygon: a list of (x,y) 2d points, has to be *convex*
+    Note:
+      **points have to be counter-clockwise ordered**
 
-   Return:
-     a list of (x,y) vertex point for the intersection polygon.
-   """
+    Return:
+      a list of (x,y) vertex point for the intersection polygon.
+    """
 
     def inside(p):
         return (cp2[0] - cp1[0]) * (p[1] - cp1[1]) > (cp2[1] - cp1[1]) * (p[0] - cp1[0])
@@ -188,9 +196,9 @@ def polygon_clip(subjectPolygon, clipPolygon):
 
 
 def intersection_area_noscipy(p1, p2):
-    """ Compute area of two convex hull's intersection area.
-        p1,p2 are a list of (x,y) tuples of hull vertices.
-        return intersection volume
+    """Compute area of two convex hull's intersection area.
+    p1,p2 are a list of (x,y) tuples of hull vertices.
+    return intersection volume
     """
     assert len(p1[0]) == 2 and len(p2[0]) == 2
     inter_p = polygon_clip(p1, p2)

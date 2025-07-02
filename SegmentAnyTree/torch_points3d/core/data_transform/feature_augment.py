@@ -46,11 +46,13 @@ class ChromaticTranslation(object):
         return data
 
     def __repr__(self):
-        return "{}(trans_range_ratio={})".format(self.__class__.__name__, self.trans_range_ratio)
+        return "{}(trans_range_ratio={})".format(
+            self.__class__.__name__, self.trans_range_ratio
+        )
 
 
 class ChromaticAutoContrast(object):
-    """ Rescale colors between 0 and 1 to enhance contrast
+    """Rescale colors between 0 and 1 to enhance contrast
 
     Parameters
     ----------
@@ -77,7 +79,9 @@ class ChromaticAutoContrast(object):
 
             contrast_feats = (feats - lo) * scale
 
-            blend_factor = random.random() if self.randomize_blend_factor else self.blend_factor
+            blend_factor = (
+                random.random() if self.randomize_blend_factor else self.blend_factor
+            )
             data.rgb = (1 - blend_factor) * feats + blend_factor * contrast_feats
         return data
 
@@ -88,7 +92,7 @@ class ChromaticAutoContrast(object):
 
 
 class ChromaticJitter:
-    """ Jitter on the rgb attribute of data
+    """Jitter on the rgb attribute of data
 
     Parameters
     ----------
@@ -113,7 +117,7 @@ class ChromaticJitter:
 
 
 class DropFeature:
-    """ Sets the given feature to 0 with a given probability
+    """Sets the given feature to 0 with a given probability
 
     Parameters
     ----------
@@ -134,7 +138,9 @@ class DropFeature:
         return data
 
     def __repr__(self):
-        return "DropFeature: proba = {}, feature = {}".format(self._drop_proba, self._feature_name)
+        return "DropFeature: proba = {}, feature = {}".format(
+            self._drop_proba, self._feature_name
+        )
 
 
 class Jitter:

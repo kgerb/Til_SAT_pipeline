@@ -9,7 +9,9 @@ class SegmentationVoter:
     This class is a helper to perform full point cloud prediction by having votes interpolated using knn
     """
 
-    def __init__(self, raw_data, num_classes, conv_type, class_seg_map=None, k: int = 1):
+    def __init__(
+        self, raw_data, num_classes, conv_type, class_seg_map=None, k: int = 1
+    ):
         assert k > 0
         self._raw_data = raw_data
         self._num_pos = raw_data.pos.shape[0]
@@ -52,12 +54,15 @@ class SegmentationVoter:
     def full_res_preds(self):
         self._predict_full_res()
         if self._class_seg_map:
-            return self._full_res_preds[:, self._class_seg_map].argmax(1) + self._class_seg_map[0]
+            return (
+                self._full_res_preds[:, self._class_seg_map].argmax(1)
+                + self._class_seg_map[0]
+            )
         else:
             return self._full_res_preds.argmax(-1)
 
     def add_vote(self, data, output, batch_mask):
-        """ Populates scores for the points in data
+        """Populates scores for the points in data
 
         Parameters
         ----------
@@ -74,12 +79,16 @@ class SegmentationVoter:
         self._num_votes += 1
 
     def _predict_full_res(self):
-        """ Predict full resolution results based on votes """
+        """Predict full resolution results based on votes"""
         has_prediction = self._vote_counts > 0
-        votes = self._votes[has_prediction].div(self._vote_counts[has_prediction].unsqueeze(-1))
+        votes = self._votes[has_prediction].div(
+            self._vote_counts[has_prediction].unsqueeze(-1)
+        )
 
         # Upsample and predict
-        full_pred = knn_interpolate(votes, self._raw_data.pos[has_prediction], self._raw_data.pos, k=self._k)
+        full_pred = knn_interpolate(
+            votes, self._raw_data.pos[has_prediction], self._raw_data.pos, k=self._k
+        )
         self._full_res_preds = full_pred
 
     def __repr__(self):

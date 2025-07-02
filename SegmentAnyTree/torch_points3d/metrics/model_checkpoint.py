@@ -21,7 +21,7 @@ class Checkpoint:
     _LATEST = "latest"
 
     def __init__(self, checkpoint_file: str, save_every_iter: bool = True):
-        """ Checkpoint manager. Saves to working directory with check_name
+        """Checkpoint manager. Saves to working directory with check_name
         Arguments
             checkpoint_file {str} -- Path to the checkpoint
             save_every_iter {bool} -- [description] (default: {True})
@@ -35,9 +35,16 @@ class Checkpoint:
         self.schedulers: Dict[str, Any] = {}
         self.dataset_properties: Dict = {}
 
-    def save_objects(self, models_to_save: Dict[str, Any], stage, current_stat, optimizer, schedulers, **kwargs):
-        """ Saves checkpoint with updated mdoels for the given stage
-        """
+    def save_objects(
+        self,
+        models_to_save: Dict[str, Any],
+        stage,
+        current_stat,
+        optimizer,
+        schedulers,
+        **kwargs,
+    ):
+        """Saves checkpoint with updated mdoels for the given stage"""
         self.models = models_to_save
         self.optimizer = (optimizer.__class__.__name__, optimizer.state_dict())
         self.schedulers = {
@@ -47,7 +54,6 @@ class Checkpoint:
         to_save = kwargs
         for key, value in self.__dict__.items():
             if not key.startswith("_"):
-
                 to_save[key] = value
         torch.save(to_save, self.path)
 
@@ -56,8 +62,14 @@ class Checkpoint:
         return self._check_path
 
     @staticmethod
-    def load(checkpoint_dir: str, checkpoint_name: str, run_config: Any, strict=False, resume=True):
-        """ Creates a new checkpoint object in the current working directory by loading the
+    def load(
+        checkpoint_dir: str,
+        checkpoint_name: str,
+        run_config: Any,
+        strict=False,
+        resume=True,
+    ):
+        """Creates a new checkpoint object in the current working directory by loading the
         checkpoint located at [checkpointdir]/[checkpoint_name].pt
         """
         checkpoint_file = os.path.join(checkpoint_dir, checkpoint_name) + ".pt"
@@ -65,11 +77,15 @@ class Checkpoint:
             ckp = Checkpoint(checkpoint_file)
             if strict or resume:
                 available_checkpoints = glob.glob(os.path.join(checkpoint_dir, "*.pt"))
-                message = "The provided path {} didn't contain the checkpoint_file {}".format(
-                    checkpoint_dir, checkpoint_name + ".pt"
+                message = (
+                    "The provided path {} didn't contain the checkpoint_file {}".format(
+                        checkpoint_dir, checkpoint_name + ".pt"
+                    )
                 )
                 if available_checkpoints:
-                    message += "\nDid you mean {}?".format(os.path.basename(available_checkpoints[0]))
+                    message += "\nDid you mean {}?".format(
+                        os.path.basename(available_checkpoints[0])
+                    )
                 raise ValueError(message)
             ckp.run_config = run_config
             return ckp
@@ -80,16 +96,16 @@ class Checkpoint:
                     checkpoint_file, chkp_name
                 )  # Copy checkpoint to new run directory to make sure we don't override
             ckp = Checkpoint(chkp_name)
-            #ckp.run_config = run_config
+            # ckp.run_config = run_config
             log.info("Loading checkpoint from {}".format(checkpoint_file))
             objects = torch.load(checkpoint_file, map_location="cpu")
             for key, value in objects.items():
                 setattr(ckp, key, value)
-                
-            #during training, uncomment the following line
-            #ckp.run_config['models']['PointGroup-PAPER']['cluster_type'] = run_config['models']['PointGroup-PAPER']['cluster_type']
-            #ckp.run_config['epochs'] = run_config['epochs']
-            #ckp.run_config['training']['epochs'] = run_config['training']['epochs']
+
+            # during training, uncomment the following line
+            # ckp.run_config['models']['PointGroup-PAPER']['cluster_type'] = run_config['models']['PointGroup-PAPER']['cluster_type']
+            # ckp.run_config['epochs'] = run_config['epochs']
+            # ckp.run_config['training']['epochs'] = run_config['training']['epochs']
             ckp._filled = True
         return ckp
 
@@ -102,22 +118,31 @@ class Checkpoint:
             # initialize optimizer
             optimizer_config = self.optimizer
             optimizer_cls = getattr(torch.optim, optimizer_config[0])
-            optimizer_params = OmegaConf.create(self.run_config).training.optim.optimizer.params
+            optimizer_params = OmegaConf.create(
+                self.run_config
+            ).training.optim.optimizer.params
             model.optimizer = optimizer_cls(model.parameters(), **optimizer_params)
 
             # initialize & load schedulersr
             schedulers_out = {}
             schedulers_config = self.schedulers
-            for scheduler_type, (scheduler_opt, scheduler_state) in schedulers_config.items():
+            for scheduler_type, (
+                scheduler_opt,
+                scheduler_state,
+            ) in schedulers_config.items():
                 if scheduler_type == "lr_scheduler":
                     optimizer = model.optimizer
-                    scheduler = instantiate_scheduler(optimizer, OmegaConf.create(scheduler_opt))
+                    scheduler = instantiate_scheduler(
+                        optimizer, OmegaConf.create(scheduler_opt)
+                    )
                     if load_state:
                         scheduler.load_state_dict(scheduler_state)
                     schedulers_out["lr_scheduler"] = scheduler
 
                 elif scheduler_type == "bn_scheduler":
-                    scheduler = instantiate_bn_scheduler(model, OmegaConf.create(scheduler_opt))
+                    scheduler = instantiate_bn_scheduler(
+                        model, OmegaConf.create(scheduler_opt)
+                    )
                     if load_state:
                         scheduler.load_state_dict(scheduler_state)
                     schedulers_out["bn_scheduler"] = scheduler
@@ -136,19 +161,23 @@ class Checkpoint:
                 try:
                     key_name = "best_{}".format(weight_name)
                     model = models[key_name]
-                    log.info("Model loaded from {}:{}.".format(self._check_path, key_name))
+                    log.info(
+                        "Model loaded from {}:{}.".format(self._check_path, key_name)
+                    )
                     return model
                 except:
                     key_name = Checkpoint._LATEST
                     model = models[Checkpoint._LATEST]
-                    log.info("Model loaded from {}:{}".format(self._check_path, key_name))
+                    log.info(
+                        "Model loaded from {}:{}".format(self._check_path, key_name)
+                    )
                     return model
             except:
                 raise Exception("This weight name isn't within the checkpoint ")
 
 
 class ModelCheckpoint(object):
-    """ Create a checkpoint for a given model
+    """Create a checkpoint for a given model
 
     Argumemnts:
         - load_dir: directory where to load the checkpoint from (if exists)
@@ -170,8 +199,10 @@ class ModelCheckpoint(object):
     ):
         # Conversion of run_config to save a dictionary and not a pickle of omegaconf
         rc = OmegaConf.to_container(copy.deepcopy(run_config))
-        self._checkpoint = Checkpoint.load(load_dir, check_name, run_config=rc, strict=strict, resume=resume)
-        self._checkpoint.run_config['data']['fold'] = run_config.data.fold
+        self._checkpoint = Checkpoint.load(
+            load_dir, check_name, run_config=rc, strict=strict, resume=resume
+        )
+        self._checkpoint.run_config["data"]["fold"] = run_config.data.fold
         self._resume = resume
         self._selection_stage = selection_stage
 
@@ -230,7 +261,9 @@ class ModelCheckpoint(object):
     def get_starting_epoch(self):
         return len(self._checkpoint.stats["train"]) + 1
 
-    def _initialize_model(self, model: model_interface.CheckpointInterface, weight_name):
+    def _initialize_model(
+        self, model: model_interface.CheckpointInterface, weight_name
+    ):
         if not self._checkpoint.is_empty:
             state_dict = self._checkpoint.get_state_dict(weight_name)
             model.load_state_dict(state_dict, strict=False)
@@ -247,7 +280,11 @@ class ModelCheckpoint(object):
         )
 
     def save_best_models_under_current_metrics(
-        self, model: model_interface.CheckpointInterface, metrics_holder: dict, metric_func_dict: dict, **kwargs
+        self,
+        model: model_interface.CheckpointInterface,
+        metrics_holder: dict,
+        metric_func_dict: dict,
+        **kwargs,
     ):
         """[This function is responsible to save checkpoint under the current metrics and their associated DEFAULT_METRICS_FUNC]
         Arguments:
@@ -280,9 +317,15 @@ class ModelCheckpoint(object):
                 for metric_name, current_metric_value in metrics.items():
                     current_stat[metric_name] = current_metric_value
 
-                    metric_func = self.find_func_from_metric_name(metric_name, metric_func_dict)
-                    best_metric_from_stats = latest_stats.get("best_{}".format(metric_name), current_metric_value)
-                    best_value = metric_func(best_metric_from_stats, current_metric_value)
+                    metric_func = self.find_func_from_metric_name(
+                        metric_name, metric_func_dict
+                    )
+                    best_metric_from_stats = latest_stats.get(
+                        "best_{}".format(metric_name), current_metric_value
+                    )
+                    best_value = metric_func(
+                        best_metric_from_stats, current_metric_value
+                    )
                     current_stat["best_{}".format(metric_name)] = best_value
 
                     # This new value seems to be better under metric_func
@@ -291,7 +334,9 @@ class ModelCheckpoint(object):
                     ):  # Update the model weights
                         models_to_save["best_{}".format(metric_name)] = state_dict
 
-                        msg += "{}: {} -> {}, ".format(metric_name, best_metric_from_stats, best_value)
+                        msg += "{}: {} -> {}, ".format(
+                            metric_name, best_metric_from_stats, best_value
+                        )
                         improved_metric += 1
 
                 if improved_metric > 0:
@@ -310,11 +355,18 @@ class ModelCheckpoint(object):
         }
 
         self._checkpoint.stats[stage].append(current_stat)
-        self._checkpoint.save_objects(models_to_save, stage, current_stat, model.optimizer, model.schedulers, **kwargs)
+        self._checkpoint.save_objects(
+            models_to_save,
+            stage,
+            current_stat,
+            model.optimizer,
+            model.schedulers,
+            **kwargs,
+        )
 
     def validate(self, dataset_config):
-        """ A checkpoint is considered as valid if it can recreate the model from
-        a dataset config only """
+        """A checkpoint is considered as valid if it can recreate the model from
+        a dataset config only"""
         if dataset_config is not None:
             for k, v in dataset_config.items():
                 self.data_config[k] = v
