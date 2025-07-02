@@ -4,9 +4,13 @@ import numpy as np
 from scipy.spatial import KDTree
 import matplotlib.pyplot as plt
 
+
 def is_within_tile_boundary(point, tile_boundary, buffer=1):
     x, y, z = point
-    return (tile_boundary[0] + buffer <= x <= tile_boundary[1] - buffer) and (tile_boundary[2] + buffer <= y <= tile_boundary[3] - buffer)
+    return (tile_boundary[0] + buffer <= x <= tile_boundary[1] - buffer) and (
+        tile_boundary[2] + buffer <= y <= tile_boundary[3] - buffer
+    )
+
 
 def find_whole_trees(tile_points, tile_pred_instance, tile_boundary, buffer=0.2):
     whole_tree_ids = set()
@@ -15,17 +19,30 @@ def find_whole_trees(tile_points, tile_pred_instance, tile_boundary, buffer=0.2)
         if tree_id == 0:
             continue
         tree_points = tile_points[tile_pred_instance == tree_id]
-        if all(is_within_tile_boundary(point, tile_boundary, buffer) for point in tree_points):
+        if all(
+            is_within_tile_boundary(point, tile_boundary, buffer)
+            for point in tree_points
+        ):
             whole_tree_ids.add(tree_id)
     return whole_tree_ids
 
-def reassign_small_clusters(merged_pred_instance, original_points, min_cluster_size=300, initial_radius=1.0, max_radius=5.0, radius_step=1.0):
+
+def reassign_small_clusters(
+    merged_pred_instance,
+    original_points,
+    min_cluster_size=300,
+    initial_radius=1.0,
+    max_radius=5.0,
+    radius_step=1.0,
+):
     unique, counts = np.unique(merged_pred_instance, return_counts=True)
     small_instances = unique[counts < min_cluster_size]
-    print(f"Found {len(small_instances)} small_instance clusters (less than {min_cluster_size} points) out of {len(unique)} unique clusters.")
+    print(
+        f"Found {len(small_instances)} small_instance clusters (less than {min_cluster_size} points) out of {len(unique)} unique clusters."
+    )
 
     kdtree = KDTree(original_points)
-    
+
     reassigned_count = 0
     not_reassigned_count = 0
     for small_instance in small_instances:
@@ -51,55 +68,90 @@ def reassign_small_clusters(merged_pred_instance, original_points, min_cluster_s
                 merged_pred_instance[idx] = -1
                 not_reassigned_count += 1
     print(f"Reassigned {reassigned_count} points to nearest other tree instance.")
-    print(f"{not_reassigned_count} points could not be reassigned and have a value of -1.")
+    print(
+        f"{not_reassigned_count} points could not be reassigned and have a value of -1."
+    )
 
-def merge_tiles(tile_folder, original_point_cloud, output_file, buffer=0.2, min_cluster_size=300):
+
+def merge_tiles(
+    tile_folder, original_point_cloud, output_file, buffer=0.2, min_cluster_size=300
+):
     print("Loading the original point cloud...")
     original_las = laspy.read(original_point_cloud)
     original_points = np.vstack((original_las.x, original_las.y, original_las.z)).T
-    
+
     merged_pred_instance = np.full(len(original_points), -1, dtype=int)
     merged_pred_semantic = np.full(len(original_points), -1, dtype=int)
-    
+
     global_instance_counter = 1  # Start from 1 to avoid conflicts with -1
-    
+
     print("Processing tiles...")
-    tile_files = [f for f in os.listdir(tile_folder) if f.endswith(".las") or f.endswith(".laz")]
-    
-    print(f"Found {len(tile_files)} tile(s) - buffer logic will be applied to all tiles")
-    
+    tile_files = [
+        f for f in os.listdir(tile_folder) if f.endswith(".las") or f.endswith(".laz")
+    ]
+
+    print(
+        f"Found {len(tile_files)} tile(s) - buffer logic will be applied to all tiles"
+    )
+
     tile_data = []
     for filename in os.listdir(tile_folder):
         if filename.endswith(".las") or filename.endswith(".laz"):
             print(f"Loading tile: {filename}")
             tile_las = laspy.read(os.path.join(tile_folder, filename))
             tile_points = np.vstack((tile_las.x, tile_las.y, tile_las.z)).T
-            
+
             tile_pred_instance = tile_las.PredInstance
             tile_pred_semantic = tile_las.PredSemantic
-            
+
             # Reindex PredInstance IDs globally, but keep 0 as 0 as it reflects ground points
             unique_ids = np.unique(tile_pred_instance)
-            id_map = {old_id: (global_instance_counter + i if old_id != 0 else 0) for i, old_id in enumerate(unique_ids)}
+            id_map = {
+                old_id: (global_instance_counter + i if old_id != 0 else 0)
+                for i, old_id in enumerate(unique_ids)
+            }
             global_instance_counter += len([uid for uid in unique_ids if uid != 0])
-            
-            reindexed_pred_instance = np.array([id_map[pid] for pid in tile_pred_instance])
-            
+
+            reindexed_pred_instance = np.array(
+                [id_map[pid] for pid in tile_pred_instance]
+            )
+
             # Store tile data for later processing
-            tile_boundary = (np.min(tile_points[:, 0]), np.max(tile_points[:, 0]), np.min(tile_points[:, 1]), np.max(tile_points[:, 1]))
-            tile_data.append((tile_points, reindexed_pred_instance, tile_pred_semantic, filename, tile_boundary))
-    
+            tile_boundary = (
+                np.min(tile_points[:, 0]),
+                np.max(tile_points[:, 0]),
+                np.min(tile_points[:, 1]),
+                np.max(tile_points[:, 1]),
+            )
+            tile_data.append(
+                (
+                    tile_points,
+                    reindexed_pred_instance,
+                    tile_pred_semantic,
+                    filename,
+                    tile_boundary,
+                )
+            )
+
     # Assign PredInstance for Whole Trees (buffer logic always applied)
     print("Assigning PredInstance for whole trees...")
-    for tile_points, reindexed_pred_instance, tile_pred_semantic, filename, tile_boundary in tile_data:
+    for (
+        tile_points,
+        reindexed_pred_instance,
+        tile_pred_semantic,
+        filename,
+        tile_boundary,
+    ) in tile_data:
         kdtree = KDTree(original_points)
         distances, indices = kdtree.query(tile_points)
 
         print(f"Processing tile: {filename} — applying buffer logic.")
-        
+
         # Identify whole trees within the tile using buffer (always applied)
-        whole_tree_ids = find_whole_trees(tile_points, reindexed_pred_instance, tile_boundary, buffer)
-        
+        whole_tree_ids = find_whole_trees(
+            tile_points, reindexed_pred_instance, tile_boundary, buffer
+        )
+
         print(f"Found {len(whole_tree_ids)} whole trees in tile {filename}")
 
         for i, idx in enumerate(indices):
@@ -110,51 +162,82 @@ def merge_tiles(tile_folder, original_point_cloud, output_file, buffer=0.2, min_
     # Rest of the function remains the same...
     print("Reassigning small PredInstance clusters...")
     reassign_small_clusters(merged_pred_instance, original_points, min_cluster_size)
-        
+
     # Rest of the function remains the same...
     print("Saving merged point cloud...")
-    merged_las = laspy.create(point_format=original_las.header.point_format, file_version=original_las.header.version)
+    merged_las = laspy.create(
+        point_format=original_las.header.point_format,
+        file_version=original_las.header.version,
+    )
     merged_las.points = original_las.points
-    merged_las.header = original_las.header  # Preserve the header information including the coordinate system
-    
+    merged_las.header = (
+        original_las.header
+    )  # Preserve the header information including the coordinate system
+
     # Initialize new extra attributes
     merged_las.add_extra_dim(laspy.ExtraBytesParams(name="PredInstance", type=np.int32))
     merged_las.add_extra_dim(laspy.ExtraBytesParams(name="PredSemantic", type=np.int32))
-    
+
     # Assign the merged attributes
     merged_las.PredInstance = merged_pred_instance
     merged_las.PredSemantic = merged_pred_semantic
-    
+
     # Copy all extra attributes except PredInstance and PredSemantic
     for dimension in original_las.point_format.dimensions:
         if dimension.name not in ["PredInstance", "PredSemantic"]:
             setattr(merged_las, dimension.name, getattr(original_las, dimension.name))
-    
+
     merged_las.write(output_file)
     print(f"Merged point cloud saved to {output_file}")
-    
+
     # Generate and save a 2D top-view image colored by PredInstance
     print("Generating 2D top-view image...")
     plt.figure(figsize=(10, 10))
-    plt.scatter(original_points[:, 0], original_points[:, 1], c=merged_pred_instance, cmap='tab20', s=.5)
-    plt.colorbar(label='PredInstance')
-    plt.title('2D Top-View of Point Cloud Colored by PredInstance')
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.axis('equal')
-    plt.savefig(output_file.replace('.las', '_top_view.png'))
+    plt.scatter(
+        original_points[:, 0],
+        original_points[:, 1],
+        c=merged_pred_instance,
+        cmap="tab20",
+        s=0.5,
+    )
+    plt.colorbar(label="PredInstance")
+    plt.title("2D Top-View of Point Cloud Colored by PredInstance")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.axis("equal")
+    plt.savefig(output_file.replace(".las", "_top_view.png"))
     plt.close()
     print(f"2D top-view image saved to {output_file.replace('.las', '_top_view.png')}")
+
 
 # Example usage
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Merge PredInstance and PredSemantic from tiles back into the original point cloud.")
+
+    parser = argparse.ArgumentParser(
+        description="Merge PredInstance and PredSemantic from tiles back into the original point cloud."
+    )
     parser.add_argument("--tile_folder", help="Folder containing LAS/LAZ tiles.")
     parser.add_argument("--original_point_cloud", help="Original point cloud file.")
     parser.add_argument("--output_file", help="Output file for the merged point cloud.")
-    parser.add_argument("--buffer", type=float, default=0.2, help="Buffer distance to consider for whole trees.")
-    parser.add_argument("--min_cluster_size", type=int, default=300, help="Minimum cluster size for PredInstance reassignment.")
+    parser.add_argument(
+        "--buffer",
+        type=float,
+        default=0.2,
+        help="Buffer distance to consider for whole trees.",
+    )
+    parser.add_argument(
+        "--min_cluster_size",
+        type=int,
+        default=300,
+        help="Minimum cluster size for PredInstance reassignment.",
+    )
     args = parser.parse_args()
-    
-    merge_tiles(args.tile_folder, args.original_point_cloud, args.output_file, args.buffer, args.min_cluster_size)
+
+    merge_tiles(
+        args.tile_folder,
+        args.original_point_cloud,
+        args.output_file,
+        args.buffer,
+        args.min_cluster_size,
+    )
