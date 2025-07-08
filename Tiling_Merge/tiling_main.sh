@@ -56,7 +56,7 @@ sleep 5
 echo "[Step 1] Tiling input file: $SUBSAMPLED_5cm_FILE ..." 
 
 # Check if the subsampled 5 cm file is smaller than 3 GB - originally
-if [ $(stat -c%s $SUBSAMPLED_5cm_FILE) -lt 3000 ]; then
+if [ $(stat -c%s $SUBSAMPLED_5cm_FILE) -lt 3000000000 ]; then
     echo "Subsampled 5 cm file is smaller than 3 GB. Copying it to 02_input_SAT folder..." 
     rsync -avP $SUBSAMPLED_5cm_FILE /data/02_input_SAT/tiled_1.las
 else
