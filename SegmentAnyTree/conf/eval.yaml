@@ -2,7 +2,14 @@ defaults:
   - visualization: eval
 
 num_workers: 0
+# batch_size: 2
 batch_size: 1
+
+# trainer:
+#   gpus: 2           # Use 2 GPUs (or "0,1" to specify which GPUs)
+#   accelerator: ddp  # Use DistributedDataParallel for best performance
+
+
 cuda: 0
 weight_name: "latest" # Used during resume, select with model to load from [miou, macc, acc..., latest]
 enable_cudnn: True
