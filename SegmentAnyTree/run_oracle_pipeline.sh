@@ -22,7 +22,7 @@ TMP_IN_DATA_FOLDER="$PATH_DATA/tmp_in_folder" # This is the folder where the inp
 TMP_OUT_DATA_FOLDER="$PATH_DATA/tmp_out_folder" # This is the folder where the output data is stored on the oracle temporarily
 
 # Set the input and output folders which mimic the bucket
-DOCKER_IN_FOLDER='/data/02_input_SAT/in_preparation' # this just mimics the input bucket
+DOCKER_IN_FOLDER='/data/02_input_SAT' # this just mimics the input bucket
 DOCKER_OUT_FOLDER='/data/03_output_SAT' # this just mimics the output bucket
 
 
@@ -134,8 +134,8 @@ for input_file in "${files[@]}"; do
 done
 
 # Process files in chunks of 10
-for ((i=0; i<${#files_to_process[@]}; i+=2)); do
-    cp "${files_to_process[@]:i:2}" "$TMP_IN_DATA_FOLDER/"
+for ((i=0; i<${#files_to_process[@]}; i+=10)); do
+    cp "${files_to_process[@]:i:10}" "$TMP_IN_DATA_FOLDER/"
     bash run_inference.sh "$TMP_IN_DATA_FOLDER" "$TMP_OUT_DATA_FOLDER"
     cp -r "$TMP_OUT_DATA_FOLDER/final_results/"* "$ORACLE_OUT_DATA_FOLDER/final_results/"
     rm -rf "$TMP_IN_DATA_FOLDER"/*
