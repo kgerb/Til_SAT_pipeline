@@ -4,14 +4,6 @@ INPUT_FILE=$1
 PREFIX=$2
 SHARED_FOLDER=/data
 
-# define the overlap, Tile size is in meters (!) and should be at least twice the overlap
-TILE_SIZE=100
-OVERLAP=20
-
-export TILE_SIZE
-export OVERLAP
-
-
 # Run initialization script
 source initialization.sh "$INPUT_FILE" "$PREFIX" "$SHARED_FOLDER"
 
@@ -34,7 +26,8 @@ echo "Destination: $ORIGINAL_DIR/$RESULTS_FOLDER_NAME"
 # Breakpoint - check variables and setup before proceeding
 echo "=== BREAKPOINT ==="
 echo "Press Enter to continue with Docker pipeline or Ctrl+C to exit"
-read -r
+# uncomment to have a breakpoint
+# read -r 
 echo "Starting Pipeline"
 
 
