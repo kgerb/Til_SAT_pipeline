@@ -13,6 +13,12 @@ LOG_FILE="${SHARED_FOLDER_PATH}/06_final_results/pipeline.log"
 # Redirect all output to log file while still showing on screen
 exec > >(tee -a "$LOG_FILE") 2>&1
 
+RESOURCE_LOG="${SHARED_FOLDER_PATH}/06_final_results/resource_usage.log"
+
+bash resource_logger.sh "$RESOURCE_LOG" 5 &
+LOGGER_PID=$!
+
+
 # Quick check
 echo "=== Starting Docker Pipeline ==="
 echo "Using variables:"
@@ -77,4 +83,4 @@ pdal translate \
     --writers.las.extra_dims="all"
 
 
-
+kill $LOGGER_PID
