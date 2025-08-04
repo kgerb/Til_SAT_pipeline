@@ -62,9 +62,9 @@ mkdir -p "${SHARED_FOLDER_PATH}/06_final_results"
 
 
 # get the subsampled file names
-SUBSAMPLED_5cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_5cm.las
+SUBSAMPLED_10cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_10cm.las
 if [[ "$INPUT_FILE" == *.laz ]]; then
-    SUBSAMPLED_5cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_5cm.laz
+    SUBSAMPLED_10cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_10cm.laz
 fi
 
 SUBSAMPLED_2cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_2cm.las
@@ -72,7 +72,7 @@ if [[ "$INPUT_FILE" == *.laz ]]; then
     SUBSAMPLED_2cm_FILE=${SHARED_FOLDER_PATH}/01_subsampled/${BASENAME}_subsampled_2cm.laz
 fi
 
-export SUBSAMPLED_5cm_FILE
+export SUBSAMPLED_10cm_FILE
 export SUBSAMPLED_2cm_FILE
 
 # Copy the file to the shared folder

@@ -33,7 +33,7 @@ ORIGINAL_FILE_LOCAL=$INPUT_FILE_LOCAL
 
 
 # Step 0: Subsampling the input point cloud to 2 cm and 5 cm and leave out all extra attributes
-echo "[Step pre-processing...] Subsampling input file to 2cm and 5cm: $FILENAME ..." 
+echo "[Step pre-processing...] Subsampling input file to 2cm and 10cm: $FILENAME ..." 
 SUBSAMPLED_2cm_FILE=/data/01_subsampled/${BASENAME}_subsampled_2cm.las
 if [[ "$INPUT_FILE" == *.laz ]]; then
     SUBSAMPLED_2cm_FILE=/data/01_subsampled/${BASENAME}_subsampled_2cm.las
@@ -43,24 +43,24 @@ echo
 pdal translate /data/00_original/${FILENAME} ${SUBSAMPLED_2cm_FILE} --json="{ \"pipeline\": [ { \"type\": \"filters.voxelcentroidnearestneighbor\", \"cell\": 0.02 }]}" 
 
 # subsample file for segmentanytree
-SUBSAMPLED_5cm_FILE=/data/01_subsampled/$(basename $INPUT_FILE .las)_subsampled_5cm.las
+SUBSAMPLED_10cm_FILE=/data/01_subsampled/$(basename $INPUT_FILE .las)_subsampled_10cm.las
 if [[ "$INPUT_FILE" == *.laz ]]; then
-    SUBSAMPLED_5cm_FILE=/data/01_subsampled/$(basename $INPUT_FILE .laz)_subsampled_5cm.las
+    SUBSAMPLED_10cm_FILE=/data/01_subsampled/$(basename $INPUT_FILE .laz)_subsampled_10cm.las
 fi
 
-pdal translate ${SUBSAMPLED_2cm_FILE} ${SUBSAMPLED_5cm_FILE} --json="{ \"pipeline\": [ { \"type\": \"filters.voxelcentroidnearestneighbor\", \"cell\": 0.10 }]}" 
+pdal translate ${SUBSAMPLED_2cm_FILE} ${SUBSAMPLED_10cm_FILE} --json="{ \"pipeline\": [ { \"type\": \"filters.voxelcentroidnearestneighbor\", \"cell\": 0.10 }]}" 
 echo "step 0.5 finished" 
 sleep 5
 
 # Step 1: Tiling input file
-echo "[Step 1] Tiling input file: $SUBSAMPLED_5cm_FILE ..." 
+echo "[Step 1] Tiling input file: $SUBSAMPLED_10cm_FILE ..." 
 
 # Check if the subsampled 5 cm file is smaller than 3 GB - originally
-if [ $(stat -c%s $SUBSAMPLED_5cm_FILE) -lt 3000000000 ]; then
+if [ $(stat -c%s $SUBSAMPLED_10cm_FILE) -lt 3000000000 ]; then
     echo "Subsampled 5 cm file is smaller than 3 GB. Copying it to 02_input_SAT folder..." 
-    rsync -avP $SUBSAMPLED_5cm_FILE /data/02_input_SAT/tiled_1.las
+    rsync -avP $SUBSAMPLED_10cm_FILE /data/02_input_SAT/tiled_1.las
 else
-    pdal tile $SUBSAMPLED_5cm_FILE /data/02_input_SAT/tiled_#.las --length $TILE_SIZE --buffer $OVERLAP
+    pdal tile $SUBSAMPLED_10cm_FILE /data/02_input_SAT/tiled_#.las --length $TILE_SIZE --buffer $OVERLAP
     echo "step 1 finished" 
     sleep 5
 

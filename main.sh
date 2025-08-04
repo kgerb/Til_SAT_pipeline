@@ -15,7 +15,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 RESOURCE_LOG="${SHARED_FOLDER_PATH}/06_final_results/resource_usage.log"
 
-bash resource_logger.sh "$RESOURCE_LOG" 5 &
+bash resourcce_logger.sh "$RESOURCE_LOG" 5 &
 LOGGER_PID=$!
 
 
@@ -63,7 +63,7 @@ conda activate tiling_env
 
 python3 /workspace/Tiling_Merge/merge_tiles.py \
     --tile_folder /data/03_output_SAT \
-    --original_point_cloud /data/01_subsampled/${BASENAME}_subsampled_5cm.las \
+    --original_point_cloud /data/01_subsampled/${BASENAME}_subsampled_10cm.las \
     --output_file /data/04_merged/${BASENAME}_merged.las
 
 ######################## REMAPPING TO ORIGINAL RESOLUTION ########################
